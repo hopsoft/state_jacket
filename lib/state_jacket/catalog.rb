@@ -1,4 +1,5 @@
-module StateCatalog
+module StateJacket
+
   # A simple class that allows users to intuitively define states and transitions.
   class Catalog < SimpleDelegator
     def initialize
@@ -44,6 +45,7 @@ module StateCatalog
       freeze
     end
   end
+
 end
 
 
