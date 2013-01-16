@@ -1,3 +1,5 @@
+require "delegate"
+
 module StateJacket
 
   # A simple class that allows users to intuitively define states and transitions.
