@@ -44,7 +44,7 @@ states.can_transition? :error => :closed # => false
 
 Lets model something a bit more complex.
 
-#### Define states &amp; transitions for a phone call
+#### Define states &amp; transitions for a phone call.
 
 ![Phone Call](https://raw.github.com/hopsoft/state_jacket/master/doc/phone-call.png)
 
@@ -58,6 +58,9 @@ states.add :connecting => [:idle, :busy, :connected]
 states.add :busy => [:idle]
 states.add :connected => [:idle]
 states.lock
+
+states.transitioners # => [:idle, :dialing, :connecting, :busy, :connected]
+states.terminators # => []
 
 states.can_transition? :idle => :dialing # => true
 states.can_transition? :dialing => [:idle, :connecting] # => true
