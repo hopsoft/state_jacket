@@ -38,10 +38,10 @@ module StateJacket
     end
 
     def lock
-      values.each do |value|
+      values.flatten.each do |value|
         next if value.nil?
-        if (keys & value).length != value.length
-          raise "Invalid StateCatalog! #{value} is not a first class state."
+        if !keys.include?(value)
+          raise "Invalid StateJacket::Catalog! [#{value}] is not a first class state."
         end
       end
       freeze
