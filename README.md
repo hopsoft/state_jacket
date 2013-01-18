@@ -1,12 +1,10 @@
 # StateJacket
 
-### Intuitively define state machine like states and transitions.
+## Intuitively define state machine like states and transitions.
 
 StateJacket provides an intuitive DSL for defining states and their transitions.
 
 ## Quick Start
-
-Install
 
 ```
 $ gem install state_jacket
