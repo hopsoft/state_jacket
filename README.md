@@ -1,29 +1,34 @@
 # StateJacket
 
-TODO: Write a gem description
+### Intuitively define state machine like states and transitions.
 
-## Installation
+StateJacket provides an intuitive DSL for defining states and their transitions.
 
-Add this line to your application's Gemfile:
+## Quick Start
 
-    gem 'state_jacket'
+Install
 
-And then execute:
+```
+$ gem install state_jacket
+```
 
-    $ bundle
+Define states for a simple [turnstyle](http://en.wikipedia.org/wiki/Finite-state_machine#Example:_a_turnstile).
 
-Or install it yourself as:
+```ruby
+require "state_jacket"
 
-    $ gem install state_jacket
+states = StateJacket::Catalog.new
+states.add :open => [:closed, :error]
+states.add :closed => [:open, :error]
+states.add :error
+states.lock
 
-## Usage
+states.transitioners # => [:open, :closed]
+states.terminators # => [:error]
 
-TODO: Write usage instructions here
+states.can_transition? :open => :closed # => true
+states.can_transition? :closed => :open # => true
+states.can_transition? :error => :open # => false
+states.can_transition? :error => :closed # => false
+```
 
-## Contributing
-
-1. Fork it
-2. Create your feature branch (`git checkout -b my-new-feature`)
-3. Commit your changes (`git commit -am 'Add some feature'`)
-4. Push to the branch (`git push origin my-new-feature`)
-5. Create new Pull Request
