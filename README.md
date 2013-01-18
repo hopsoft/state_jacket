@@ -32,6 +32,7 @@ states.add :closed => [:open, :error]
 states.add :error
 states.lock
 
+states.inspect # => {:open=>[:closed, :error], :closed=>[:open, :error], :error=>nil}
 states.transitioners # => [:open, :closed]
 states.terminators # => [:error]
 
