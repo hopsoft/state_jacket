@@ -1,6 +1,6 @@
 # StateJacket
 
-## Intuitively define state machine like states and transitions.
+## An Intuitive [State Transition System](http://en.wikipedia.org/wiki/State_transition_system)
 
 [State machines](http://en.wikipedia.org/wiki/Finite-state_machine) are awesome
 but can be pretty daunting as a system grows.
@@ -38,5 +38,32 @@ states.can_transition? :open => :closed # => true
 states.can_transition? :closed => :open # => true
 states.can_transition? :error => :open # => false
 states.can_transition? :error => :closed # => false
+```
+
+## Next Steps
+
+Lets model something a bit more complex.
+
+#### Define states &amp; transitions for a phone call
+
+![Phone Call](https://raw.github.com/hopsoft/state_jacket/master/doc/phone-call.png)
+
+```
+require "state_jacket"
+
+states = StateJacket::Catalog.new
+states.add :idle => [:dialing]
+states.add :dialing => [:idle, :connecting]
+states.add :connecting => [:idle, :busy, :connected]
+states.add :busy => [:idle]
+states.add :connected => [:idle]
+states.lock
+
+states.can_transition? :idle => :dialing # => true
+states.can_transition? :dialing => [:idle, :connecting] # => true
+states.can_transition? :connecting => [:idle, :busy, :connected] # => true
+states.can_transition? :busy => :idle # => true
+states.can_transition? :connected => :idle # => true
+states.can_transition? :idle => [:dialing, :connected] # => false
 ```
 
