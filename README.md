@@ -17,7 +17,7 @@ and how they transition to other states.
 $ gem install state_jacket
 ```
 
-#### Define states for a simple [turnstyle](http://en.wikipedia.org/wiki/Finite-state_machine#Example:_a_turnstile).
+#### Define states &amp; transitions for a simple [turnstyle](http://en.wikipedia.org/wiki/Finite-state_machine#Example:_a_turnstile).
 
 ![Turnstyle](https://raw.github.com/hopsoft/state_jacket/master/doc/turnstyle.png)
 
