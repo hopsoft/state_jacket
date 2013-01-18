@@ -11,7 +11,7 @@ and how they transition to other states.
 
 *The examples below are somewhat contrived, but should clearly illustrate the usage.*
 
-## Quick Start
+## The Basics
 
 #### Install
 
@@ -72,3 +72,53 @@ states.can_transition? :connected => :idle # => true
 states.can_transition? :idle => [:dialing, :connected] # => false
 ```
 
+## Deep Cuts
+
+Lets add state awareness and behavior to another class.
+We'll reuse the turnstyle states from the example from above.
+
+```ruby
+require "state_jacket"
+
+class Turnstyle
+  attr_reader :states, :current_state
+
+  def initialize
+    @states = StateJacket::Catalog.new
+    @states.add :open => [:closed, :error]
+    @states.add :closed => [:open, :error]
+    @states.add :error
+    @states.lock
+    @current_state = :closed
+  end
+
+  def open
+    if states.can_transition? current_state => :open
+      @current_state = :open
+    else
+      raise "Can't transition from #{@current_state} to :open"
+    end
+  end
+
+  def close
+    if states.can_transition? current_state => :closed
+      @current_state = :closed
+    else
+      raise "Can't transition from #{@current_state} to :closed"
+    end
+  end
+
+end
+
+# example usage
+turnstyle = Turnstyle.new
+turnstyle.current_state # => :closed
+turnstyle.open
+turnstyle.current_state # => :open
+turnstyle.close
+turnstyle.current_state # => :closed
+turnstyle.close # => RuntimeError: Can't transition from closed to :closed
+turnstyle.open
+turnstyle.current_state # => :open
+turnstyle.open # => RuntimeError: Can't transition from open to :open
+```
