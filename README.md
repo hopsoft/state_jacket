@@ -9,6 +9,8 @@ StateJacket simplifies things by isolating the management of states & transition
 Events are left out, making it much easier to reason about what states exist
 and how they transition to other states.
 
+*The examples below are somewhat contrived, but should clearly illustrate the usage.*
+
 ## Quick Start
 
 #### Install
