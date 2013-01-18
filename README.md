@@ -2,15 +2,25 @@
 
 ## Intuitively define state machine like states and transitions.
 
-StateJacket provides an intuitive DSL for defining states and their transitions.
+[State machines](http://en.wikipedia.org/wiki/Finite-state_machine) are awesome
+but can be pretty daunting as a system grows.
+Keeping states, transitions, & events straight can be tricky.
+
+StateJacket simplifies things by isolating the management of states & transitions.
+Events are left out, making it much easier to reason about what states exist
+and how they transition to other states.
 
 ## Quick Start
+
+Install
 
 ```
 $ gem install state_jacket
 ```
 
 Define states for a simple [turnstyle](http://en.wikipedia.org/wiki/Finite-state_machine#Example:_a_turnstile).
+
+![Turnstyle](https://raw.github.com/hopsoft/state_jacket/master/doc/turnstyle.png)
 
 ```ruby
 require "state_jacket"
