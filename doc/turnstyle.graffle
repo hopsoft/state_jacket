@@ -194,9 +194,9 @@
 						<key>a</key>
 						<string>0.1</string>
 						<key>b</key>
-						<string>0.4</string>
+						<string>0</string>
 						<key>g</key>
-						<string>0.8</string>
+						<string>0</string>
 						<key>r</key>
 						<string>1</string>
 					</dict>
@@ -435,13 +435,13 @@
 					<key>Color</key>
 					<dict>
 						<key>a</key>
-						<string>0.1</string>
+						<string>0.15</string>
 						<key>b</key>
-						<string>0.4</string>
+						<string>0</string>
 						<key>g</key>
-						<string>0.8</string>
-						<key>r</key>
 						<string>1</string>
+						<key>r</key>
+						<string>0</string>
 					</dict>
 				</dict>
 				<key>shadow</key>
@@ -479,13 +479,13 @@
 					<key>Color</key>
 					<dict>
 						<key>a</key>
-						<string>0.1</string>
+						<string>0.05</string>
 						<key>b</key>
-						<string>0.4</string>
+						<string>0</string>
 						<key>g</key>
-						<string>0.8</string>
-						<key>r</key>
 						<string>1</string>
+						<key>r</key>
+						<string>0</string>
 					</dict>
 				</dict>
 				<key>shadow</key>
@@ -523,13 +523,13 @@
 					<key>Color</key>
 					<dict>
 						<key>a</key>
-						<string>0.1</string>
+						<string>0.02</string>
 						<key>b</key>
-						<string>0.4</string>
+						<string>0</string>
 						<key>g</key>
-						<string>0.8</string>
-						<key>r</key>
 						<string>1</string>
+						<key>r</key>
+						<string>0</string>
 					</dict>
 				</dict>
 				<key>shadow</key>
@@ -939,7 +939,7 @@
 	<key>MasterSheets</key>
 	<array/>
 	<key>ModificationDate</key>
-	<string>2013-01-18 05:57:44 +0000</string>
+	<string>2013-01-18 06:13:02 +0000</string>
 	<key>Modifier</key>
 	<string>Nathan Hopkins</string>
 	<key>NotesVisible</key>

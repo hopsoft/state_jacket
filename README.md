@@ -48,7 +48,7 @@ Lets model something a bit more complex.
 
 ![Phone Call](https://raw.github.com/hopsoft/state_jacket/master/doc/phone-call.png)
 
-```
+```ruby
 require "state_jacket"
 
 states = StateJacket::Catalog.new
