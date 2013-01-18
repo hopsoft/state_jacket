@@ -5,7 +5,6 @@
 [State machines](http://en.wikipedia.org/wiki/Finite-state_machine) are awesome
 but can be pretty daunting as a system grows.
 Keeping states, transitions, & events straight can be tricky.
-
 StateJacket simplifies things by isolating the management of states & transitions.
 Events are left out, making it much easier to reason about what states exist
 and how they transition to other states.
