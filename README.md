@@ -108,6 +108,9 @@ class Turnstyle
     end
   end
 
+  def break
+    @current_state = :error
+  end
 end
 
 # example usage
@@ -121,4 +124,7 @@ turnstyle.close # => RuntimeError: Can't transition from closed to :closed
 turnstyle.open
 turnstyle.current_state # => :open
 turnstyle.open # => RuntimeError: Can't transition from open to :open
+turnstyle.break
+turnstyle.open # => RuntimeError: Can't transition from open to :open
+turnstyle.close # => RuntimeError: Can't transition from closed to :closed
 ```
