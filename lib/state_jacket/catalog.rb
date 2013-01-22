@@ -31,10 +31,18 @@ module StateJacket
       end
     end
 
+    def transitioner?(state)
+      transitioners.include?(state.to_sym)
+    end
+
     def terminators
       keys.select do |state|
         self[state] == nil
       end
+    end
+
+    def terminator?(state)
+      terminators.include?(state.to_sym)
     end
 
     def lock
@@ -46,6 +54,11 @@ module StateJacket
       end
       freeze
     end
+
+    def supports_state?(state)
+      keys.include?(state.to_sym)
+    end
+
   end
 
 end
