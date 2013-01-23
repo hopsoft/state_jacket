@@ -9,7 +9,7 @@ Gem::Specification.new do |gem|
   gem.authors       = ["Nathan Hopkins"]
   gem.email         = ["natehop@gmail.com"]
   gem.summary       = "Intuitively define state machine like states and transitions."
-  gem.homepage      = ""
+  gem.homepage      = "https://github.com/hopsoft/state_jacket"
 
   gem.files         = `git ls-files`.split($/)
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
