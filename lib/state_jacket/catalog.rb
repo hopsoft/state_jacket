@@ -10,17 +10,17 @@ module StateJacket
 
     def add(state)
       if state.is_a?(Hash)
-        self[state.keys.first.to_sym] = state.values.first.map(&:to_sym)
+        self[state.keys.first.to_s] = state.values.first.map(&:to_s)
       else
-        self[state] = nil
+        self[state.to_s] = nil
       end
     end
 
     def can_transition?(from_to)
-      from = from_to.keys.first.to_sym
+      from = from_to.keys.first.to_s
       to = from_to.values.first
       to = [to] unless to.is_a?(Array)
-      to = to.map(&:to_sym)
+      to = to.map(&:to_s)
       transitions = self[from] || []
       (to & transitions).length == to.length
     end
@@ -32,7 +32,7 @@ module StateJacket
     end
 
     def transitioner?(state)
-      transitioners.include?(state.to_sym)
+      transitioners.include?(state.to_s)
     end
 
     def terminators
@@ -42,7 +42,7 @@ module StateJacket
     end
 
     def terminator?(state)
-      terminators.include?(state.to_sym)
+      terminators.include?(state.to_s)
     end
 
     def lock
@@ -56,7 +56,7 @@ module StateJacket
     end
 
     def supports_state?(state)
-      keys.include?(state.to_sym)
+      keys.include?(state.to_s)
     end
 
   end

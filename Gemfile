@@ -1,4 +1,7 @@
 source 'https://rubygems.org'
 
-# Specify your gem's dependencies in state_jacket.gemspec
-gemspec
+group :development, :test do
+  gem "micro_test"
+  gem "pry"
+  gem "pry-stack_explorer"
+end
