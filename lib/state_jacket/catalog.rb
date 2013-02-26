@@ -5,7 +5,8 @@ module StateJacket
   # A simple class that allows users to intuitively define states and transitions.
   class Catalog < SimpleDelegator
     def initialize
-      super({})
+      @inner_hash = {}
+      super inner_hash
     end
 
     def add(state)
@@ -52,12 +53,16 @@ module StateJacket
           raise "Invalid StateJacket::Catalog! [#{value}] is not a first class state."
         end
       end
-      freeze
+      inner_hash.freeze
     end
 
     def supports_state?(state)
       keys.include?(state.to_s)
     end
+
+    protected
+
+    attr_reader :inner_hash
 
   end
 
