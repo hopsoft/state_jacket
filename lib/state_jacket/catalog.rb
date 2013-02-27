@@ -54,6 +54,7 @@ module StateJacket
         end
       end
       inner_hash.freeze
+      values.each { |value| value.freeze unless value.nil? }
     end
 
     def supports_state?(state)
