@@ -15,6 +15,7 @@ Gem::Specification.new do |gem|
   gem.test_files    = Dir["test/**/*.rb"]
   gem.require_paths = ["lib"]
 
+  gem.add_development_dependency "rake"
   gem.add_development_dependency "micro_test"
   gem.add_development_dependency "pry"
   gem.add_development_dependency "pry-stack_explorer"
