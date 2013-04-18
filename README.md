@@ -137,6 +137,6 @@ turnstyle.close # => RuntimeError: Can't transition from error to :closed
 ```
 gem install state_jacket
 gem unpack state_jacket
-cd state_jacket-[VERSION]
+cd state_jacket-VERSION
 rake
 ```
