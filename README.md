@@ -1,7 +1,7 @@
 # StateJacket
 
 [![Build Status](https://travis-ci.org/hopsoft/state_jacket.png)](https://travis-ci.org/hopsoft/state_jacket)
-[![Dependency Status](https://gemnasium.com/hopsoft/state_jacket.png)](https://gemnasium.com/hopsoft/_jacket)
+[![Dependency Status](https://gemnasium.com/hopsoft/state_jacket.png)](https://gemnasium.com/hopsoft/state_jacket)
 
 ## An Intuitive [State Transition System](http://en.wikipedia.org/wiki/State_transition_system)
 
