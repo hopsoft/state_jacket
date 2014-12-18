@@ -15,46 +15,65 @@ class CatalogTest < PryTest::Test
   end
 
   test "terminators" do
-    @catalog.add :start
-    assert @catalog.terminators.include?("start")
+    @catalog.add :start => [:finish]
+    @catalog.add :finish
+    @catalog.lock
+    assert @catalog.terminators == ["finish"]
+  end
+
+  test "terminator" do
+    @catalog.add :start => [:finish]
+    @catalog.add :finish
+    @catalog.lock
+    assert @catalog.terminator?(:finish)
   end
 
   test "transitioners" do
     @catalog.add :start => [:finish]
+    @catalog.add :finish
+    @catalog.lock
     assert @catalog.transitioners == ["start"]
+  end
+
+  test "transitioner" do
+    @catalog.add :start => [:finish]
+    @catalog.add :finish
+    @catalog.lock
+    assert @catalog.transitioner?(:start)
   end
 
   test "can transition" do
     @catalog.add :start => [:finish]
+    @catalog.add :finish
+    @catalog.lock
     assert @catalog.can_transition?(:start => :finish)
   end
 
   test "supports state" do
     @catalog.add :start => [:finish]
+    @catalog.add :finish
+    @catalog.lock
     assert @catalog.supports_state?(:start)
+    assert @catalog.supports_state?(:finish)
   end
 
   test "lock failure" do
     @catalog.add :start => [:finish]
-    error = nil
     begin
       @catalog.lock
-    rescue Exception => ex
-      error = ex
+    rescue Exception => e
     end
-    assert error.message.start_with?("Invalid StateJacket::Catalog!")
+    assert e.message.start_with?("Invalid StateJacket::Catalog!")
   end
 
   test "lock success" do
     @catalog.add :start => [:finish]
     @catalog.add :finish
-    error = nil
     begin
       @catalog.lock
-    rescue Exception => ex
-      error = ex
+    rescue Exception => e
     end
-    assert error.nil?
+    assert e.nil?
   end
 
   test "symbol state" do
