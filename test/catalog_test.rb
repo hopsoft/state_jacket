@@ -1,7 +1,10 @@
-require "micro_test"
+require "pry-test"
+require "coveralls"
+Coveralls.wear!
+SimpleCov.command_name "pry-test"
 require_relative "../lib/state_jacket/catalog"
 
-class CatalogTest < MicroTest::Test
+class CatalogTest < PryTest::Test
   before do
     @catalog = StateJacket::Catalog.new
   end
@@ -37,7 +40,7 @@ class CatalogTest < MicroTest::Test
     begin
       @catalog.lock
     rescue Exception => ex
-      error = ex 
+      error = ex
     end
     assert error.message.start_with?("Invalid StateJacket::Catalog!")
   end
@@ -49,7 +52,7 @@ class CatalogTest < MicroTest::Test
     begin
       @catalog.lock
     rescue Exception => ex
-      error = ex 
+      error = ex
     end
     assert error.nil?
   end

@@ -1,8 +1,11 @@
-# StateJacket
+[![Lines of Code](http://img.shields.io/badge/lines_of_code-73-brightgreen.svg?style=flat)](http://blog.codinghorror.com/the-best-code-is-no-code-at-all/)
+[![Code Status](http://img.shields.io/codeclimate/github/hopsoft/state_jacket.svg?style=flat)](https://codeclimate.com/github/hopsoft/state_jacket)
+[![Dependency Status](http://img.shields.io/gemnasium/hopsoft/state_jacket.svg?style=flat)](https://gemnasium.com/hopsoft/state_jacket)
+[![Build Status](http://img.shields.io/travis/hopsoft/state_jacket.svg?style=flat)](https://travis-ci.org/hopsoft/state_jacket)
+[![Coverage Status](https://img.shields.io/coveralls/hopsoft/state_jacket.svg?style=flat)](https://coveralls.io/r/hopsoft/state_jacket?branch=master)
+[![Downloads](http://img.shields.io/gem/dt/state_jacket.svg?style=flat)](http://rubygems.org/gems/state_jacket)
 
-[![Build Status](https://travis-ci.org/hopsoft/state_jacket.png)](https://travis-ci.org/hopsoft/state_jacket)
-[![Dependency Status](https://gemnasium.com/hopsoft/state_jacket.png)](https://gemnasium.com/hopsoft/state_jacket)
-[![Code Climate](https://codeclimate.com/github/hopsoft/state_jacket.png)](https://codeclimate.com/github/hopsoft/state_jacket)
+# StateJacket
 
 ## An Intuitive [State Transition System](http://en.wikipedia.org/wiki/State_transition_system)
 
@@ -13,14 +16,14 @@ StateJacket simplifies things by isolating the management of states & transition
 Events are left out, making it much easier to reason about what states exist
 and how they transition to other states.
 
-*The examples below are somewhat contrived, but should clearly illustrate the usage.*
+*The examples below are somewhat contrived, but should clearly illustrate usage.*
 
 ## The Basics
 
 #### Install
 
-```
-$ gem install state_jacket
+```sh
+gem install state_jacket
 ```
 
 #### Define states &amp; transitions for a simple [turnstyle](http://en.wikipedia.org/wiki/Finite-state_machine#Example:_a_turnstile).
