@@ -18,7 +18,7 @@ Gem::Specification.new do |gem|
   gem.add_development_dependency "rake"
   gem.add_development_dependency "pry"
   gem.add_development_dependency "pry-test"
-  gem.add_development_dependency "pry-stack_explorer"
-  gem.add_development_dependency "pry-rescue"
+  #gem.add_development_dependency "pry-stack_explorer"
+  #gem.add_development_dependency "pry-rescue"
   gem.add_development_dependency "coveralls"
 end
