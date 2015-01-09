@@ -136,11 +136,3 @@ turnstyle.open # => RuntimeError: Can't transition from error to :open
 turnstyle.close # => RuntimeError: Can't transition from error to :closed
 ```
 
-## Running the Tests
-
-```
-gem install state_jacket
-gem unpack state_jacket
-cd state_jacket-VERSION
-rake
-```
