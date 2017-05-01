@@ -1,3 +1,3 @@
-module StateJacket
+class StateJacket
   VERSION = "0.1.1"
 end

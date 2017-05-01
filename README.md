@@ -33,15 +33,14 @@ gem install state_jacket
 ```ruby
 require "state_jacket"
 
-states = StateJacket::Catalog.new
-states.add :open => [:closed, :error]
-states.add :closed => [:open, :error]
-states.add :error
+states = StateJacket.new
+states.add open: [:closed, :error]
+states.add closed: [:open, :error]
 states.lock
 
-states.inspect # => {:open=>[:closed, :error], :closed=>[:open, :error], :error=>nil}
-states.transitioners # => [:open, :closed]
-states.terminators # => [:error]
+states.to_h.inspect  # => {"open"=>["closed", "error"], "closed"=>["open", "error"], "error"=>nil}
+states.transitioners # => ["open", "closed"]
+states.terminators   # => ["error"]
 
 states.can_transition? :open => :closed # => true
 states.can_transition? :closed => :open # => true
