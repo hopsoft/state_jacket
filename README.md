@@ -26,7 +26,7 @@ and how they transition to other states.
 gem install state_jacket
 ```
 
-#### Define states &amp; transitions for a simple [turnstyle](http://en.wikipedia.org/wiki/Finite-state_machine#Example:_a_turnstile).
+#### Define states & transitions for a simple [turnstyle](http://en.wikipedia.org/wiki/Finite-state_machine#Example:_a_turnstile).
 
 ![Turnstyle](https://raw.github.com/hopsoft/state_jacket/master/doc/turnstyle.png)
 
@@ -42,9 +42,9 @@ states.to_h.inspect  # => {"open"=>["closed", "error"], "closed"=>["open", "erro
 states.transitioners # => ["open", "closed"]
 states.terminators   # => ["error"]
 
-states.can_transition? :open => :closed # => true
-states.can_transition? :closed => :open # => true
-states.can_transition? :error => :open # => false
+states.can_transition? :open => :closed  # => true
+states.can_transition? :closed => :open  # => true
+states.can_transition? :error => :open   # => false
 states.can_transition? :error => :closed # => false
 ```
 
@@ -52,30 +52,30 @@ states.can_transition? :error => :closed # => false
 
 Lets model something a bit more complex.
 
-#### Define states &amp; transitions for a phone call.
+#### Define states & transitions for a phone call.
 
 ![Phone Call](https://raw.github.com/hopsoft/state_jacket/master/doc/phone-call.png)
 
 ```ruby
 require "state_jacket"
 
-states = StateJacket::Catalog.new
-states.add :idle => [:dialing]
-states.add :dialing => [:idle, :connecting]
-states.add :connecting => [:idle, :busy, :connected]
-states.add :busy => [:idle]
-states.add :connected => [:idle]
+states = StateJacket.new
+states.add idle: [:dialing]
+states.add dialing: [:idle, :connecting]
+states.add connecting: [:idle, :busy, :connected]
+states.add busy: :idle
+states.add connected: :idle
 states.lock
 
-states.transitioners # => [:idle, :dialing, :connecting, :busy, :connected]
-states.terminators # => []
+states.transitioners # => ["idle", "dialing", "connecting", "busy", "connected"]
+states.terminators   # => []
 
-states.can_transition? :idle => :dialing # => true
-states.can_transition? :dialing => [:idle, :connecting] # => true
-states.can_transition? :connecting => [:idle, :busy, :connected] # => true
-states.can_transition? :busy => :idle # => true
-states.can_transition? :connected => :idle # => true
-states.can_transition? :idle => [:dialing, :connected] # => false
+states.can_transition? idle: :dialing                         # => true
+states.can_transition? dialing: [:idle, :connecting]          # => true
+states.can_transition? connecting: [:idle, :busy, :connected] # => true
+states.can_transition? busy: :idle                            # => true
+states.can_transition? connected: :idle                       # => true
+states.can_transition? idle: [:dialing, :connected]           # => false
 ```
 
 ## Deep Cuts
@@ -91,9 +91,8 @@ class Turnstyle
 
   def initialize
     @states = StateJacket::Catalog.new
-    @states.add :open => [:closed, :error]
-    @states.add :closed => [:open, :error]
-    @states.add :error
+    @states.add open: [:closed, :error]
+    @states.add closed: [:open, :error]
     @states.lock
     @current_state = :closed
   end
