@@ -2,7 +2,7 @@ require_relative "./test_helper"
 
 class StateJacketTest < PryTest::Test
   before do
-    @transitions = StateJacket::TransitionSystem.new
+    @transitions = StateJacket::StateTransitionSystem.new
   end
 
   test "add state" do
@@ -93,7 +93,7 @@ class StateJacketTest < PryTest::Test
   end
 
   test "phone call example" do
-    @transitions = StateJacket::TransitionSystem.new
+    @transitions = StateJacket::StateTransitionSystem.new
     @transitions.add idle: [:dialing]
     @transitions.add dialing: [:idle, :connecting]
     @transitions.add connecting: [:idle, :busy, :connected]

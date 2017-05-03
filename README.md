@@ -7,130 +7,85 @@
 
 # StateJacket
 
-## An Intuitive [State Transition System](http://en.wikipedia.org/wiki/State_transition_system)
+## An Intuitive [State Transition System](http://en.wikipedia.org/wiki/State_transition_system) & [State Machine](https://en.wikipedia.org/wiki/Finite-state_machine)
 
-[State machines](http://en.wikipedia.org/wiki/Finite-state_machine) are awesome
-but can be pretty daunting as a system grows.
-Keeping states, transitions, & events straight can be tricky.
-StateJacket simplifies things by isolating the management of states & transitions.
-Events are left out, making it much easier to reason about what states exist
-and how they transition to other states.
+StateJacket isolates the concerns of the state transition system & state machine.
 
-*The examples below are somewhat contrived, but should clearly illustrate usage.*
-
-## The Basics
-
-#### Install
+## Install
 
 ```sh
 gem install state_jacket
 ```
 
-#### Define states & transitions for a simple [turnstyle](http://en.wikipedia.org/wiki/Finite-state_machine#Example:_a_turnstile).
+## Example
+
+Let's define states & transitions (i.e. the state transition system) & a state machine for a [turnstyle](http://en.wikipedia.org/wiki/Finite-state_machine#Example:_a_turnstile).
 
 ![Turnstyle](https://raw.github.com/hopsoft/state_jacket/master/doc/turnstyle.png)
 
+### State Transition System
+
 ```ruby
-require "state_jacket"
+system = StateJacket::StateTransitionSystem.new
+system.add :opened => [:closed, :errored]
+system.add :closed => [:opened, :errored]
+system.lock # prevent further changes
 
-states = StateJacket.new
-states.add open: [:closed, :error]
-states.add closed: [:open, :error]
-states.lock
+system.to_h.inspect  # => {"opened"=>["closed", "errored"], "closed"=>["opened", "errored"], "errored"=>nil}
+system.transitioners # => ["opened", "closed"]
+system.terminators   # => ["errored"]
 
-states.to_h.inspect  # => {"open"=>["closed", "error"], "closed"=>["open", "error"], "error"=>nil}
-states.transitioners # => ["open", "closed"]
-states.terminators   # => ["error"]
-
-states.can_transition? :open => :closed  # => true
-states.can_transition? :closed => :open  # => true
-states.can_transition? :error => :open   # => false
-states.can_transition? :error => :closed # => false
+system.can_transition? :opened => :closed  # => true
+system.can_transition? :closed => :opened  # => true
+system.can_transition? :errored => :opened # => false
+system.can_transition? :errored => :closed # => false
 ```
 
-## Next Steps
+### State Machine
 
-Lets model something a bit more complex.
-
-#### Define states & transitions for a phone call.
-
-![Phone Call](https://raw.github.com/hopsoft/state_jacket/master/doc/phone-call.png)
+Define the events that trigger transitions defined by the state transition system (i.e. the state machine).
 
 ```ruby
-require "state_jacket"
+machine = StateJacket::StateMachine.new(system, state: "closed")
+machine.on :open, :closed => :opened
+machine.on :close, :opened => :closed
+machine.lock # prevent further changes
 
-states = StateJacket.new
-states.add idle: [:dialing]
-states.add dialing: [:idle, :connecting]
-states.add connecting: [:idle, :busy, :connected]
-states.add busy: :idle
-states.add connected: :idle
-states.lock
+machine.to_h.inspect # => {"open"=>[{"closed"=>"opened"}], "close"=>[{"opened"=>"closed"}]}
+machine.events       # => ["open", "close"]
 
-states.transitioners # => ["idle", "dialing", "connecting", "busy", "connected"]
-states.terminators   # => []
+machine.state            # => "closed"
+machine.is_event? :open  # => true
+machine.is_event? :close # => true
+machine.is_event? :other # => false
 
-states.can_transition? idle: :dialing                         # => true
-states.can_transition? dialing: [:idle, :connecting]          # => true
-states.can_transition? connecting: [:idle, :busy, :connected] # => true
-states.can_transition? busy: :idle                            # => true
-states.can_transition? connected: :idle                       # => true
-states.can_transition? idle: [:dialing, :connected]           # => false
-```
+machine.can_trigger? :open # => true
+machine.can_trigger? :close # => false
 
-## Deep Cuts
+machine.state         # => "closed"
+machine.trigger :open # => "opened"
+machine.state         # => "opened"
 
-Lets add state awareness and behavior to another class.
-We'll reuse the turnstyle states from the example from above.
-
-```ruby
-require "state_jacket"
-
-class Turnstyle
-  attr_reader :states, :current_state
-
-  def initialize
-    @states = StateJacket::Catalog.new
-    @states.add open: [:closed, :error]
-    @states.add closed: [:open, :error]
-    @states.lock
-    @current_state = :closed
-  end
-
-  def open
-    if states.can_transition? current_state => :open
-      @current_state = :open
-    else
-      raise "Can't transition from #{@current_state} to :open"
-    end
-  end
-
-  def close
-    if states.can_transition? current_state => :closed
-      @current_state = :closed
-    else
-      raise "Can't transition from #{@current_state} to :closed"
-    end
-  end
-
-  def break
-    @current_state = :error
-  end
+# you can also pass a block when triggering events
+machine.trigger :close do |from_state, to_state|
+  # custom logic can be placed here
+  from_state # => "opened"
+  to_state   # => "closed"
 end
 
-# example usage
-turnstyle = Turnstyle.new
-turnstyle.current_state # => :closed
-turnstyle.open
-turnstyle.current_state # => :open
-turnstyle.close
-turnstyle.current_state # => :closed
-turnstyle.close # => RuntimeError: Can't transition from closed to :closed
-turnstyle.open
-turnstyle.current_state # => :open
-turnstyle.open # => RuntimeError: Can't transition from open to :open
-turnstyle.break
-turnstyle.open # => RuntimeError: Can't transition from error to :open
-turnstyle.close # => RuntimeError: Can't transition from error to :closed
-```
+machine.state # => "closed"
 
+# this is a noop because can_trigger?(:close) is false
+machine.trigger :close # => nil
+
+machine.state # => "closed"
+
+begin
+  machine.trigger :open do |from_state, to_state|
+    raise # the transition isn't performed if an error occurs in the block
+  end
+rescue
+end
+
+machine.state # => "closed"
+```

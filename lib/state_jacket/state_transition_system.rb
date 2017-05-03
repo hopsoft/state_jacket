@@ -1,5 +1,5 @@
 module StateJacket
-  class TransitionSystem
+  class StateTransitionSystem
     def initialize
       @transitions = {}
     end

@@ -7,14 +7,15 @@ module StateJacket
       raise ArgumentError.new("illegal state") unless transition_system.is_state?(state)
       @transition_system = transition_system
       @state = state.to_s
-      @events = {}
+      @triggers = {}
     end
 
     def to_h
-      {
-        "transitions" => transition_system.to_h, # system that establishes allowed transitions
-        "events" => events.dup                   # allowed events that perform transitions
-      }
+      triggers.dup
+    end
+
+    def events
+      triggers.keys
     end
 
     def on(event, transitions={})
@@ -22,9 +23,9 @@ module StateJacket
       raise ArgumentError.new("event has already been added") if is_event?(event)
       transitions.each do |from, to|
         raise ArgumentError.new("illegal transition") unless transition_system.can_transition?(from => to)
-        events[event.to_s] ||= []
-        events[event.to_s] << { from.to_s => to.to_s }
-        events[event.to_s].uniq!
+        triggers[event.to_s] ||= []
+        triggers[event.to_s] << { from.to_s => to.to_s }
+        triggers[event.to_s].uniq!
       end
     end
 
@@ -32,7 +33,7 @@ module StateJacket
       raise "must be locked before triggering events" unless is_locked?
       raise ArgumentError.new("event not defined") unless is_event?(event)
       transition = transition_for(event)
-      return unless transition
+      return nil unless transition
       from = @state
       to = transition.values.first
       raise "current state doesn't match transition state" unless from == transition.keys.first
@@ -42,9 +43,9 @@ module StateJacket
 
     def lock
       return true if is_locked?
-      events.freeze
-      events.values.map(&:freeze)
-      events.values.freeze
+      triggers.freeze
+      triggers.values.map(&:freeze)
+      triggers.values.freeze
       @locked = true
     end
 
@@ -53,7 +54,7 @@ module StateJacket
     end
 
     def is_event?(event)
-      events.has_key? event.to_s
+      triggers.has_key? event.to_s
     end
 
     def can_trigger?(event)
@@ -63,10 +64,10 @@ module StateJacket
 
     private
 
-      attr_reader :transition_system, :events
+      attr_reader :transition_system, :triggers
 
       def transition_for(event)
-        events[event.to_s].find { |entry| entry.keys.first == state }
+        triggers[event.to_s].find { |entry| entry.keys.first == state }
       end
   end
 end

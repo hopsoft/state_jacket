@@ -2,7 +2,7 @@ require_relative "./test_helper"
 
 class StateMachineTest < PryTest::Test
   before do
-    @transitions = StateJacket::TransitionSystem.new
+    @transitions = StateJacket::StateTransitionSystem.new
   end
 
   test "new raises with invalid state" do
@@ -34,7 +34,7 @@ class StateMachineTest < PryTest::Test
     @transitions.add closed: [:opened, :errored]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     begin
-      machine.on :open, closed: :fubar
+      machine.on :reopen, errored: :open
     rescue StandardError => e
     end
     assert e
@@ -46,17 +46,7 @@ class StateMachineTest < PryTest::Test
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
-    assert machine.to_h == {
-      "transitions" => {
-        "closed" => ["opened", "errored"],
-        "errored" => nil,
-        "opened" => ["closed", "errored"]
-      },
-      "events" => {
-        "open" => [{ "closed" => "opened" }],
-        "close" => [{ "opened" => "closed" }]
-      }
-    }
+    assert machine.to_h == {"open"=>[{"closed"=>"opened"}], "close"=>[{"opened"=>"closed"}]}
   end
 
   test "lock prevents future mutations" do
