@@ -90,6 +90,17 @@ class StateMachineTest < PryTest::Test
     assert machine.state == "closed"
   end
 
+  test "trigger noop" do
+    @transitions.add opened: [:closed]
+    @transitions.add closed: [:opened]
+    machine = StateJacket::StateMachine.new(@transitions, state: :closed)
+    machine.on :open, closed: :opened
+    machine.on :close, opened: :closed
+    machine.lock
+    assert machine.trigger(:open) == "opened"
+    assert machine.trigger(:open).nil?
+  end
+
   test "trigger event sets matching state with block" do
     @transitions.add opened: [:closed]
     @transitions.add closed: [:opened]
