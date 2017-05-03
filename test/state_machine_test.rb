@@ -19,7 +19,7 @@ class StateMachineTest < PryTest::Test
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     StateJacket::StateMachine.new(@transitions, state: :closed)
-    assert @transitions.locked?
+    assert @transitions.is_locked?
   end
 
   test "creating an event that has an illegal transition fails" do
@@ -59,10 +59,23 @@ class StateMachineTest < PryTest::Test
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
     assert machine.lock
-    assert machine.locked?
+    assert machine.is_locked?
     begin
       machine.on :error, closed: :opened
-    rescue ArgumentError => e
+    rescue StandardError => e
+    end
+    assert e
+  end
+
+  test "can't trigger events unless locked" do
+    @transitions.add opened: [:closed]
+    @transitions.add closed: [:opened]
+    machine = StateJacket::StateMachine.new(@transitions, state: :closed)
+    machine.on :open, closed: :opened
+    machine.on :close, opened: :closed
+    begin
+      machine.trigger(:open)
+    rescue StandardError => e
     end
     assert e
   end
@@ -73,6 +86,7 @@ class StateMachineTest < PryTest::Test
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
+    machine.lock
     machine.trigger :open
     assert machine.state == "opened"
     machine.trigger :close
@@ -85,6 +99,7 @@ class StateMachineTest < PryTest::Test
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
+    machine.lock
     machine.trigger(:open) { "consumer logic goes here..." }
     assert machine.state == "opened"
     machine.trigger(:close) { "consumer logic goes here..." }
@@ -97,6 +112,7 @@ class StateMachineTest < PryTest::Test
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
+    machine.lock
     machine.trigger(:open) { raise } rescue nil
     assert machine.state == "closed"
   end

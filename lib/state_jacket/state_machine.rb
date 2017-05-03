@@ -18,7 +18,7 @@ module StateJacket
     end
 
     def on(event, transitions={})
-      raise ArgumentError.new("events cannot be added after locking") if locked?
+      raise "events cannot be added after locking" if is_locked?
       raise ArgumentError.new("event has already been added") if is_event?(event)
       transitions.each do |from, to|
         raise ArgumentError.new("illegal transition") unless transition_system.can_transition?(from => to)
@@ -29,6 +29,7 @@ module StateJacket
     end
 
     def trigger(event)
+      raise "must be locked before triggering events" unless is_locked?
       raise ArgumentError.new("event not defined") unless is_event?(event)
       transition = transition_for(event)
       return unless transition
@@ -38,14 +39,14 @@ module StateJacket
     end
 
     def lock
-      return true if locked?
+      return true if is_locked?
       events.freeze
       events.values.map(&:freeze)
       events.values.freeze
       @locked = true
     end
 
-    def locked?
+    def is_locked?
       !!@locked
     end
 

@@ -9,7 +9,7 @@ module StateJacket
     end
 
     def add(state)
-      raise ArgumentError.new("states cannot be added after locking") if locked?
+      raise "states cannot be added after locking" if is_locked?
       if state.is_a?(Hash)
         from = state.keys.first.to_s
         transitions[from] = make_states(state.values.first)
@@ -19,13 +19,13 @@ module StateJacket
     end
 
     def lock
-      return true if locked?
+      return true if is_locked?
       transitions.freeze
       transitions.values.each { |value| value.freeze unless value.nil? }
       @locked = true
     end
 
-    def locked?
+    def is_locked?
       !!@locked
     end
 
