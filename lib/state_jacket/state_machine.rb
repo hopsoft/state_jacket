@@ -33,9 +33,11 @@ module StateJacket
       raise ArgumentError.new("event not defined") unless is_event?(event)
       transition = transition_for(event)
       return unless transition
-      next_state = transition.values.first
-      yield if block_given?
-      @state = next_state
+      from = @state
+      to = transition.values.first
+      raise "current state doesn't match transition state" unless from == transition.keys.first
+      yield from, to if block_given?
+      @state = to
     end
 
     def lock
@@ -52,6 +54,11 @@ module StateJacket
 
     def is_event?(event)
       events.has_key? event.to_s
+    end
+
+    def can_trigger?(event)
+      return false unless is_locked?
+      !!transition_for(event)
     end
 
     private
