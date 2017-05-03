@@ -46,8 +46,8 @@ class StateMachineTest < PryTest::Test
         "opened" => ["closed", "errored"]
       },
       "events" => {
-        "open" => [{"closed" => "opened"}],
-        "close" => [{"opened" => "closed"}]
+        "open" => [{ "closed" => "opened" }],
+        "close" => [{ "opened" => "closed" }]
       }
     }
   end
