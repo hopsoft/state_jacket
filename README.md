@@ -9,7 +9,8 @@
 
 ## An Intuitive [State Transition System](http://en.wikipedia.org/wiki/State_transition_system) & [State Machine](https://en.wikipedia.org/wiki/Finite-state_machine)
 
-StateJacket isolates the concerns of the state transition system & state machine.
+StateJacket provides an intuitive approach to building complex state machines
+by isolating the concerns of the state transition system & state machine.
 
 ## Install
 
