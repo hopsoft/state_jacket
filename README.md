@@ -5,6 +5,8 @@
 [![Coverage Status](https://img.shields.io/coveralls/hopsoft/state_jacket.svg?style=flat)](https://coveralls.io/r/hopsoft/state_jacket?branch=master)
 [![Downloads](http://img.shields.io/gem/dt/state_jacket.svg?style=flat)](http://rubygems.org/gems/state_jacket)
 
+<a href="https://app.codesponsor.io/link/QMSjMHrtPhvfmCnk5Hbikhhr/hopsoft/state_jacket"><img src="https://app.codesponsor.io/embed/QMSjMHrtPhvfmCnk5Hbikhhr/hopsoft/state_jacket.svg" style="width: 888px; height: 68px;" alt="Sponsor" /></a>
+
 # StateJacket
 
 ## An Intuitive [State Transition System](http://en.wikipedia.org/wiki/State_transition_system) & [State Machine](https://en.wikipedia.org/wiki/Finite-state_machine)
