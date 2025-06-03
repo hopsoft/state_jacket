@@ -132,6 +132,19 @@ class ReadmeTest < Minitest::Test
     assert_equal(true, machine.can_trigger?(:start))
     assert_equal(false, machine.can_trigger?(:complete))
 
+    # Convenience methods for current state
+    triggerable_events = machine.triggerable_events
+    assert_includes(triggerable_events, "start")
+    assert_includes(triggerable_events, "cancel")
+    refute_includes(triggerable_events, "complete")
+
+    reachable_states = machine.reachable_states
+    assert_includes(reachable_states, "processing")
+    assert_includes(reachable_states, "cancelled")
+
+    assert_equal(false, machine.terminal?)
+    assert_equal(:pending, machine.state_symbol)
+
     # Triggering events
     result = machine.trigger(:start)
     assert_equal("processing", result)

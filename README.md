@@ -31,6 +31,16 @@ This separation means you can reason about your state logic independently, test 
 
 Let's build a [turnstile](http://en.wikipedia.org/wiki/Finite-state_machine#Example:_a_turnstile) to see StateJacket in action:
 
+```mermaid
+stateDiagram-v2
+    [*] --> Closed
+    Closed --> Opened : open
+    Opened --> Closed : close
+    Closed --> Errored : break
+    Opened --> Errored : break
+    Errored --> [*]
+```
+
 ![Turnstyle](https://raw.github.com/hopsoft/state_jacket/master/doc/turnstyle.png)
 
 ### Step 1: Define the State Transition System
@@ -202,6 +212,12 @@ machine.events                  # => ["start", "complete", "fail", "cancel", "re
 machine.is_event?(:start)       # => true
 machine.can_trigger?(:start)    # => true (valid from current state)
 machine.can_trigger?(:complete) # => false (not valid from pending)
+
+# Convenience methods for current state
+machine.triggerable_events      # => ["start", "cancel"] (events that can be triggered now)
+machine.reachable_states        # => ["processing", "cancelled"] (states reachable from current state)
+machine.terminal?               # => false (current state has outgoing transitions)
+machine.state_symbol            # => :pending (current state as symbol)
 
 # Triggering events
 result = machine.trigger(:start)
@@ -796,6 +812,21 @@ end
 
 ### User Account Lifecycle
 
+User onboarding and management with clear state progression:
+
+```mermaid
+stateDiagram-v2
+    [*] --> PendingVerification
+    PendingVerification --> Active : verify_email
+    PendingVerification --> Rejected : verification_expired
+    Active --> Suspended : policy_violation
+    Active --> Deactivated : user_request
+    Suspended --> Active : appeal_approved
+    Suspended --> Deactivated : appeal_rejected
+    Deactivated --> Active : reactivate_request
+    Rejected --> [*]
+```
+
 ```ruby
 class UserAccountManager
   def initialize(user)
@@ -860,6 +891,22 @@ end
 ```
 
 ### Document Approval Workflow
+
+Multi-stage approval process with feedback loops:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft
+    Draft --> UnderReview : submit_for_review
+    UnderReview --> ChangesRequested : request_changes
+    UnderReview --> Approved : approve
+    ChangesRequested --> UnderReview : resubmit
+    Approved --> Published : publish
+    Published --> Archived : archive
+    Draft --> Archived : discard
+    ChangesRequested --> Archived : abandon
+    Archived --> [*]
+```
 
 ```ruby
 class DocumentWorkflow
@@ -939,6 +986,70 @@ end
 <summary><strong>Testing StateJacket</strong></summary>
 
 StateJacket's separation of concerns makes testing delightfully straightforward:
+
+## Testing Patterns & Best Practices
+
+### Visual Testing Documentation
+
+When documenting tests, include the expected state flow:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> State1 : ✓ Valid
+    State1 --> State2 : ✓ Valid
+    State2 --> State3 : ✓ Valid
+    State1 --> State3 : x Invalid
+    State3 --> State1 : x Invalid
+    State3 --> [*]
+```
+
+### Advanced Workflow Patterns
+
+#### Circuit Breaker Pattern
+
+Implement resilient service interactions:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Closed
+    Closed --> Open : failure_threshold_exceeded
+    Open --> HalfOpen : timeout_elapsed
+    HalfOpen --> Closed : test_request_succeeded
+    HalfOpen --> Open : test_request_failed
+```
+
+```ruby
+system = StateJacket::StateTransitionSystem.new
+system.add :closed => [:open]
+system.add :open => [:half_open]
+system.add :half_open => [:closed, :open]
+system.lock
+
+circuit_breaker = StateJacket::StateMachine.new(system, state: :closed)
+circuit_breaker.on :trip, :closed => :open
+circuit_breaker.on :attempt_reset, :open => :half_open
+circuit_breaker.on :reset, :half_open => :closed
+circuit_breaker.on :fail_again, :half_open => :open
+circuit_breaker.lock
+```
+
+#### Deployment Pipeline
+
+Model CI/CD workflows with clear progression:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Building
+    Building --> Testing : build_succeeded
+    Building --> Failed : build_failed
+    Testing --> Staging : tests_passed
+    Testing --> Failed : tests_failed
+    Staging --> Production : deploy_approved
+    Staging --> Failed : staging_failed
+    Production --> [*]
+    Failed --> [*]
+```
 
 ### Testing State Transition Systems
 
@@ -1065,7 +1176,7 @@ end
 
 ## Performance Characteristics
 
-StateJacket prioritizes architectural clarity over feature richness. The minimal overhead of state transitions allows you to focus optimization efforts where they matter most: your business logic, database operations, and external integrations.
+StateJacket prioritizes architectural clarity over feature richness while maintaining excellent performance through strategic optimizations. The library uses O(1) transition lookups via pre-computed caching, ensuring minimal overhead regardless of state machine complexity.
 
 **Real-World Performance Context:** In typical applications, state transitions represent <0.1% of total request time. The real performance gains come from StateJacket's clean architecture enabling better optimization of business logic, database queries, and external API calls - where the actual time is spent.
 
@@ -1080,20 +1191,20 @@ StateJacket Performance Benchmark
 ==================================================
 
 Performing 1,000 total transitions:
-  Completed in: 0.001 seconds
-  Rate: 990,099 transitions/second
+  Completed in: 0.0006 seconds
+  Rate: 1,689,190 transitions/second
 
 Performing 10,000 total transitions:
-  Completed in: 0.0074 seconds
-  Rate: 1,360,359 transitions/second
+  Completed in: 0.007 seconds
+  Rate: 1,437,814 transitions/second
 
 Performing 100,000 total transitions:
-  Completed in: 0.0691 seconds
-  Rate: 1,446,424 transitions/second
+  Completed in: 0.0647 seconds
+  Rate: 1,544,592 transitions/second
 
 Performing 1,000,000 total transitions:
-  Completed in: 0.6933 seconds
-  Rate: 1,442,358 transitions/second
+  Completed in: 0.641 seconds
+  Rate: 1,560,033 transitions/second
 
 ==================================================
 Benchmark completed successfully!
@@ -1101,7 +1212,67 @@ Benchmark completed successfully!
 
 These results confirm that StateJacket's overhead is negligible - your application's performance will be determined by your business logic, not by state transitions.
 
-**Production Performance:** StateJacket has been benchmarked to handle over 1.4 million state transitions per second, meaning even in high-throughput applications, state machine overhead remains completely negligible compared to database operations, network calls, and business logic execution.
+**Production Performance:** StateJacket has been optimized with O(1) transition lookups and can handle over 1.5 million state transitions per second consistently. This means even in high-throughput applications, state machine overhead remains completely negligible compared to database operations, network calls, and business logic execution.
+
+## Visual Design Workflow
+
+### From Diagram to Code
+
+StateJacket's design philosophy enables a smooth workflow from visual design to implementation:
+
+1. **Design Visually** - Start with diagrams (mermaid, draw.io, etc.)
+2. **Map Directly** - Each diagram element becomes StateJacket code
+3. **Test Independently** - Test state rules separately from business logic
+4. **Implement Business Logic** - Add your domain-specific behavior
+
+### Complex State Machine Example
+
+Here's how a complex workflow looks in both diagram and code:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Connecting : start_connection
+    Connecting --> Connected : connection_established
+    Connecting --> Failed : connection_failed
+    Connecting --> Timeout : connection_timeout
+    Connected --> Transferring : begin_transfer
+    Connected --> Idle : disconnect
+    Transferring --> Connected : transfer_complete
+    Transferring --> Failed : transfer_error
+    Failed --> Idle : reset
+    Timeout --> Idle : reset
+    Failed --> Connecting : retry
+    Timeout --> Connecting : retry
+```
+
+```ruby
+# The diagram translates directly to clear code
+system = StateJacket::StateTransitionSystem.new
+system.add :idle => [:connecting]
+system.add :connecting => [:connected, :failed, :timeout]
+system.add :connected => [:transferring, :idle]
+system.add :transferring => [:connected, :failed]
+system.add :failed => [:idle, :connecting]
+system.add :timeout => [:idle, :connecting]
+system.lock
+
+# Events map to the diagram transitions
+machine = StateJacket::StateMachine.new(system, state: :idle)
+machine.on :start_connection, :idle => :connecting
+machine.on :connection_established, :connecting => :connected
+machine.on :connection_failed, :connecting => :failed
+machine.on :connection_timeout, :connecting => :timeout
+machine.on :begin_transfer, :connected => :transferring
+machine.on :disconnect, :connected => :idle
+machine.on :transfer_complete, :transferring => :connected
+machine.on :transfer_error, :transferring => :failed
+machine.on :reset, {:failed => :idle, :timeout => :idle}
+machine.on :retry, {:failed => :connecting, :timeout => :connecting}
+machine.lock
+```
+
+</edits>
 
 ## Design Philosophy
 

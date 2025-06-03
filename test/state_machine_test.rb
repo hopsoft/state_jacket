@@ -60,6 +60,14 @@ class StateMachineTest < Minitest::Test
     assert machine.events.sort == ["close", "open"]
   end
 
+  def test_states
+    @transitions.add opened: [:closed, :errored]
+    @transitions.add closed: [:opened, :errored]
+    @transitions.add :errored
+    machine = StateJacket::StateMachine.new(@transitions, state: :closed)
+    assert machine.states.sort == ["closed", "errored", "opened"]
+  end
+
   def test_lock_prevents_future_mutations
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
@@ -182,5 +190,60 @@ class StateMachineTest < Minitest::Test
     machine.on :close, opened: :closed
     machine.lock
     assert !machine.can_trigger?(:close)
+  end
+
+  def test_triggerable_events
+    @transitions.add opened: [:closed, :errored]
+    @transitions.add closed: [:opened, :errored]
+    @transitions.add :errored
+    machine = StateJacket::StateMachine.new(@transitions, state: :closed)
+    machine.on :open, closed: :opened
+    machine.on :close, opened: :closed
+    machine.on :break, {closed: :errored, opened: :errored}
+    machine.lock
+
+    available = machine.triggerable_events
+    assert_includes available, "open"
+    assert_includes available, "break"
+    refute_includes available, "close"
+  end
+
+  def test_reachable_states
+    @transitions.add opened: [:closed, :errored]
+    @transitions.add closed: [:opened, :errored]
+    @transitions.add :errored
+    machine = StateJacket::StateMachine.new(@transitions, state: :closed)
+    machine.on :open, closed: :opened
+    machine.on :close, opened: :closed
+    machine.on :break, {closed: :errored, opened: :errored}
+    machine.lock
+
+    available = machine.reachable_states
+    assert_includes available, "opened"
+    assert_includes available, "errored"
+    refute_includes available, "closed"
+  end
+
+  def test_terminal
+    @transitions.add opened: [:closed, :errored]
+    @transitions.add closed: [:opened, :errored]
+    @transitions.add :errored
+    machine = StateJacket::StateMachine.new(@transitions, state: :closed)
+    machine.on :open, closed: :opened
+    machine.on :break, {closed: :errored, opened: :errored}
+    machine.lock
+
+    refute machine.terminal?
+    machine.trigger(:break)
+    assert machine.terminal?
+  end
+
+  def test_state_symbol
+    @transitions.add opened: [:closed, :errored]
+    @transitions.add closed: [:opened, :errored]
+    machine = StateJacket::StateMachine.new(@transitions, state: :closed)
+
+    assert_equal :closed, machine.state_symbol
+    assert_instance_of Symbol, machine.state_symbol
   end
 end
