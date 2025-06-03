@@ -1,11 +1,13 @@
-require_relative "./test_helper"
+# frozen_string_literal: true
 
-class StateMachineTest < PryTest::Test
-  before do
+require_relative "test_helper"
+
+class StateMachineTest < Minitest::Test
+  def setup
     @transitions = StateJacket::StateTransitionSystem.new
   end
 
-  test "new raises with invalid state" do
+  def test_new_raises_with_invalid_state
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     begin
@@ -15,41 +17,50 @@ class StateMachineTest < PryTest::Test
     assert e
   end
 
-  test "new assigns state" do
+  def test_new_assigns_state
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     machine = StateJacket::StateMachine.new(@transitions, state: :opened)
     assert machine.state == "opened"
   end
 
-  test "new locks the jacket" do
+  def test_new_locks_the_jacket
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     StateJacket::StateMachine.new(@transitions, state: :closed)
     assert @transitions.is_locked?
   end
 
-  test "creating an event that has an illegal transition fails" do
+  def test_creating_an_event_that_has_an_illegal_transition_fails
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     begin
       machine.on :reopen, errored: :open
-    rescue StandardError => e
+    rescue => e
     end
     assert e
   end
 
-  test "to_h" do
+  def test_to_h
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
-    assert machine.to_h == {"open"=>[{"closed"=>"opened"}], "close"=>[{"opened"=>"closed"}]}
+    assert machine.to_h == {"open" => [{"closed" => "opened"}], "close" => [{"opened" => "closed"}]}
   end
 
-  test "lock prevents future mutations" do
+  def test_events
+    @transitions.add opened: [:closed, :errored]
+    @transitions.add closed: [:opened, :errored]
+    machine = StateJacket::StateMachine.new(@transitions, state: :closed)
+    machine.on :open, closed: :opened
+    machine.on :close, opened: :closed
+    assert machine.events.sort == ["close", "open"]
+  end
+
+  def test_lock_prevents_future_mutations
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
@@ -59,12 +70,12 @@ class StateMachineTest < PryTest::Test
     assert machine.is_locked?
     begin
       machine.on :error, closed: :opened
-    rescue StandardError => e
+    rescue => e
     end
     assert e
   end
 
-  test "can't trigger events unless locked" do
+  def test_cant_trigger_events_unless_locked
     @transitions.add opened: [:closed]
     @transitions.add closed: [:opened]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
@@ -72,12 +83,12 @@ class StateMachineTest < PryTest::Test
     machine.on :close, opened: :closed
     begin
       machine.trigger :open
-    rescue StandardError => e
+    rescue => e
     end
     assert e
   end
 
-  test "trigger event sets matching state" do
+  def test_trigger_event_sets_matching_state
     @transitions.add opened: [:closed]
     @transitions.add closed: [:opened]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
@@ -90,7 +101,7 @@ class StateMachineTest < PryTest::Test
     assert machine.state == "closed"
   end
 
-  test "trigger noop" do
+  def test_trigger_noop
     @transitions.add opened: [:closed]
     @transitions.add closed: [:opened]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
@@ -101,7 +112,7 @@ class StateMachineTest < PryTest::Test
     assert machine.trigger(:open).nil?
   end
 
-  test "trigger event sets matching state with block" do
+  def test_trigger_event_sets_matching_state_with_block
     @transitions.add opened: [:closed]
     @transitions.add closed: [:opened]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
@@ -114,33 +125,37 @@ class StateMachineTest < PryTest::Test
     assert machine.state == "closed"
   end
 
-  test "trigger event does not set state if error in block" do
+  def test_trigger_event_does_not_set_state_if_error_in_block
     @transitions.add opened: [:closed]
     @transitions.add closed: [:opened]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
     machine.lock
-    machine.trigger(:open) { |from, to| raise } rescue nil
+    begin
+      machine.trigger(:open) { |from, to| raise }
+    rescue
+      nil
+    end
     assert machine.state == "closed"
   end
 
-  test "trigger event passes from/to states to block" do
+  def test_trigger_event_passes_from_to_states_to_block
     @transitions.add opened: [:closed]
     @transitions.add closed: [:opened]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
     machine.lock
-    states = { from: nil, to: nil }
+    states = {from: nil, to: nil}
     machine.trigger :open do |from, to|
       states[:from] = from
       states[:to] = to
     end
-    assert states == { from: "closed", to: "opened" }
+    assert states == {from: "closed", to: "opened"}
   end
 
-  test "can_trigger? false unless locked" do
+  def test_can_trigger_false_unless_locked
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
@@ -149,7 +164,7 @@ class StateMachineTest < PryTest::Test
     assert !machine.can_trigger?(:open)
   end
 
-  test "can_trigger?" do
+  def test_can_trigger
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
@@ -159,7 +174,7 @@ class StateMachineTest < PryTest::Test
     assert machine.can_trigger?(:open)
   end
 
-  test "can_trigger? false" do
+  def test_can_trigger_false
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)

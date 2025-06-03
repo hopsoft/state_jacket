@@ -1,86 +1,88 @@
-require_relative "./test_helper"
+# frozen_string_literal: true
 
-class StateJacketTest < PryTest::Test
-  before do
+require_relative "test_helper"
+
+class StateJacketTest < Minitest::Test
+  def setup
     @transitions = StateJacket::StateTransitionSystem.new
   end
 
-  test "add state" do
+  def test_add_state
     @transitions.add :started
     assert @transitions.to_h.has_key?("started")
   end
 
-  test "terminators" do
+  def test_terminators
     @transitions.add started: [:finished]
     @transitions.lock
     assert @transitions.terminators == ["finished"]
   end
 
-  test "is_terminator?" do
+  def test_is_terminator
     @transitions.add started: [:finished]
     @transitions.lock
     assert @transitions.is_terminator?(:finished)
   end
 
-  test "transitioners" do
+  def test_transitioners
     @transitions.add started: [:finished]
     @transitions.lock
     assert @transitions.transitioners == ["started"]
   end
 
-  test "is_transitioner?" do
+  def test_is_transitioner
     @transitions.add started: [:finished]
     @transitions.lock
     assert @transitions.is_transitioner?(:started)
   end
 
-  test "can_transition?" do
+  def test_can_transition
     @transitions.add started: [:finished]
     @transitions.lock
     assert @transitions.can_transition?(started: :finished)
   end
 
-  test "is_state?" do
+  def test_is_state
     @transitions.add started: [:finished]
     @transitions.lock
     assert @transitions.is_state?(:started)
     assert @transitions.is_state?(:finished)
   end
 
-  test "lock success" do
+  def test_lock_success
     @transitions.add started: [:finished]
     begin
       @transitions.lock
-    rescue Exception => e
+    rescue => e
     end
     assert e.nil?
   end
 
-  test "states" do
+  def test_states
     @transitions.add started: [:finished]
     @transitions.lock
-    assert @transitions.states == %w(finished started)
+    assert @transitions.states == %w[finished started]
   end
 
-  test "symbol state" do
+  def test_symbol_state
     @transitions.add started: [:finished]
-    assert @transitions.to_h.keys.include?("started")
+    assert @transitions.to_h.key?("started")
     assert @transitions.can_transition?(started: :finished)
   end
 
-  test "string state" do
+  def test_string_state
     @transitions.add "started" => ["finished"]
-    assert @transitions.to_h.keys.include?("started")
+    assert @transitions.to_h.key?("started")
     assert @transitions.can_transition?("started" => "finished")
   end
 
-  test "number state" do
+  def test_number_state
     @transitions.add 1 => [2]
-    assert @transitions.to_h.keys.include?("1")
+    assert @transitions.to_h.key?("1")
     assert @transitions.can_transition?(1 => 2)
   end
 
-  test "turnstyle example" do
+  def test_turnstyle_example
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     @transitions.lock
@@ -92,7 +94,7 @@ class StateJacketTest < PryTest::Test
     assert @transitions.can_transition?(errored: :closeded) == false
   end
 
-  test "phone call example" do
+  def test_phone_call_example
     @transitions = StateJacket::StateTransitionSystem.new
     @transitions.add idle: [:dialing]
     @transitions.add dialing: [:idle, :connecting]
@@ -110,14 +112,14 @@ class StateJacketTest < PryTest::Test
     assert @transitions.can_transition?(idle: [:dialing, :connected]) == false
   end
 
-  test "to_h" do
+  def test_to_h
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     @transitions.lock
     assert @transitions.to_h == {
-      "closed"  => ["opened", "errored"],
+      "closed" => ["opened", "errored"],
       "errored" => nil,
-      "opened"  => ["closed", "errored"]
+      "opened" => ["closed", "errored"]
     }
   end
 end
