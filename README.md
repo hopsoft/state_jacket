@@ -12,6 +12,48 @@ StateJacket provides an intuitive approach to building complex state machines by
 
 Think of it as the difference between a well-designed class with clear responsibilities versus a monolithic blob that does everything. StateJacket gives you the tools to build state machines that won't make your future self want to travel back in time and have words with your past self.
 
+<!-- toc -->
+
+undefined [Core Concepts: Two-Layer Architecture](#core-concepts-two-layer-architecture)
+undefined [Quick Example: Turnstile](#quick-example-turnstile)
+- [Step 1: Define the State Transition System](#step-1-define-the-state-transition-system)
+- [Step 2: Create the State Machine](#step-2-create-the-state-machine)
+undefined [Complete Feature Reference](#complete-feature-reference)
+- [StateTransitionSystem: The Foundation](#statetransitionsystem-the-foundation)
+- [StateMachine: The Behavior Engine](#statemachine-the-behavior-engine)
+- [Advanced Features](#advanced-features)
+undefined [Business Logic & Validation Philosophy](#business-logic--validation-philosophy)
+- [The StateJacket Way: Explicit Over Implicit](#the-statejacket-way-explicit-over-implicit)
+- [Recommended Patterns](#recommended-patterns)
+- [Why This Approach Wins](#why-this-approach-wins)
+undefined [Error Handling & Debugging](#error-handling--debugging)
+- [Common Errors and Solutions](#common-errors-and-solutions)
+- [Debugging State Machines](#debugging-state-machines)
+- [Error Recovery Patterns](#error-recovery-patterns)
+undefined [Comparison with Other Ruby State Machine Libraries](#comparison-with-other-ruby-state-machine-libraries)
+- [Detailed Comparison](#detailed-comparison)
+- [Why Choose StateJacket?](#why-choose-statejacket)
+undefined [Real-World Examples](#real-world-examples)
+- [E-Commerce Order Processing](#e-commerce-order-processing)
+- [User Account Lifecycle](#user-account-lifecycle)
+- [Document Approval Workflow](#document-approval-workflow)
+undefined [Testing Patterns & Best Practices](#testing-patterns--best-practices)
+- [Visual Testing Documentation](#visual-testing-documentation)
+- [Advanced Workflow Patterns](#advanced-workflow-patterns)
+- [Testing State Transition Systems](#testing-state-transition-systems)
+- [Testing State Machines](#testing-state-machines)
+- [Testing Business Logic Separately](#testing-business-logic-separately)
+undefined [Performance Characteristics](#performance-characteristics)
+undefined [Benchmark Results](#benchmark-results)
+undefined [Visual Design Workflow](#visual-design-workflow)
+- [From Diagram to Code](#from-diagram-to-code)
+- [Complex State Machine Example](#complex-state-machine-example)
+undefined [Design Philosophy](#design-philosophy)
+- [Core Principles](#core-principles)
+- [When to Choose StateJacket](#when-to-choose-statejacket)
+
+<!-- tocstop -->
+
 ## Install
 
 ```sh
@@ -40,8 +82,6 @@ stateDiagram-v2
     Opened --> Errored : break
     Errored --> [*]
 ```
-
-![Turnstyle](https://raw.github.com/hopsoft/state_jacket/master/doc/turnstyle.png)
 
 ### Step 1: Define the State Transition System
 
