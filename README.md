@@ -41,28 +41,31 @@ require 'state_jacket'
 
 # 1. Define valid state transitions (the domain rules)
 system = StateJacket::StateTransitionSystem.new
-system.add(:pending => [:approved, :rejected]) # pending can go to approved or rejected
-system.add(:approved)                          # approved is terminal (no further transitions)
-system.add(:rejected)                          # rejected is terminal
-system.lock                                    # make immutable for thread safety
+system.add pending: [:approved, :rejected]  # creates approved & rejected as terminals automatically
+system.lock                                 # make immutable for thread safety
 
 # 2. Create state machine with current state and event handlers
 machine = StateJacket::StateMachine.new(system, state: :pending)
-machine.on :approve, :pending => :approved # :approve event transitions pending -> approved
-machine.on :reject, :pending => :rejected  # :reject event transitions pending -> rejected
+machine.on :approve, pending: :approved  # :approve event transitions pending -> approved
+machine.on :reject, pending: :rejected   # :reject event transitions pending -> rejected
 machine.lock
 
 # 3. Trigger transitions and handle results with pattern matching
 result = machine.trigger(:approve)
 case result
-in { success?: true, to: "approved" }
+in success?: true, to: "approved"
   puts "Approved! 🎉"
-in { failed?: true }
+in failed?: true
   puts "Approval failed"
 end
 
 puts machine.state  # => "approved"
 ```
+
+> [!NOTE]
+> **Automatic State Creation**
+> 
+> StateJacket automatically creates terminal states when they're referenced as destinations. For example, `system.add pending: [:approved, :rejected]` creates `approved` and `rejected` as terminal states automatically - no need to add them explicitly unless they have outgoing transitions.
 
 > [!NOTE]
 >
@@ -76,12 +79,12 @@ puts machine.state  # => "approved"
 # State machine introspection
 machine.state                  # => "approved"
 machine.events                 # => ["approve", "reject"]
-machine.can_trigger?(:approve) # => false (already approved)
+machine.can_trigger? :approve   # => false (already approved)
 machine.terminal?              # => true
 
 # Transition system introspection
 system.states # => ["pending", "approved", "rejected"]
-system.can_transition?(:pending => :approved) # => true
+system.can_transition? pending: :approved  # => true
 ```
 
 ## Why StateJacket?
@@ -117,11 +120,11 @@ StateJacket introduces a **two-layer architecture** that separates concerns:
 ```ruby
 # Instead of hidden guard methods and callbacks...
 case result
-in { success?: true, from: "pending", to: "approved" }
+in success?: true, from: "pending", to: "approved"
   send_approval_notification       # explicit business logic
   update_inventory_status          # clear side effects
-in { failed?: true, from: state }
-  handle_validation_failure(state) # explicit error handling
+in failed?: true, from: state
+  handle_validation_failure state  # explicit error handling
 end
 ```
 
@@ -161,9 +164,8 @@ Defines the **tracks and stations** - what routes are physically possible.
 ```ruby
 # Define the railway network (domain rules)
 system = StateJacket::StateTransitionSystem.new
-system.add(:station_a => [:station_b, :station_c]) # routes from station A
-system.add(:station_b => :station_c)               # routes from station B
-system.add(:station_c)                             # terminal station
+system.add station_a: [:station_b, :station_c]  # routes from station A
+system.add station_b: :station_c                 # routes from station B (station_c auto-created as terminal)
 system.lock
 ```
 
@@ -174,9 +176,9 @@ Manages the **current location and movement** - where you are and how you travel
 ```ruby
 # Create a train on the network
 machine = StateJacket::StateMachine.new(system, state: :station_a)
-machine.on :express_route, :station_a => :station_c # express train event
-machine.on :local_route, :station_a => :station_b   # local train event
-machine.on :continue, :station_b => :station_c      # continuation event
+machine.on :express_route, station_a: :station_c  # express train event
+machine.on :local_route, station_a: :station_b    # local train event
+machine.on :continue, station_b: :station_c       # continuation event
 machine.lock
 ```
 
@@ -192,10 +194,10 @@ StateJacket supports multiple syntaxes for defining transitions:
 
 ```ruby
 # Single source transition
-machine.on :approve, :pending => :approved
+machine.on :approve, pending: :approved
 
 # Multiple source transitions (hash syntax)
-machine.on :archive, {:draft => :archived, :published => :archived}
+machine.on :archive, draft: :archived, published: :archived
 
 # Multiple source transitions (array syntax - cleaner)
 machine.on :archive, [:draft, :published] => :archived
@@ -211,23 +213,20 @@ machine.on :archive, [:draft, :published] => :archived
 ```ruby
 # Define the state transitions (domain rules)
 system = StateJacket::StateTransitionSystem.new
-system.add(:cart => [:submitted, :abandoned])
-system.add(:submitted => [:paid, :cancelled])
-system.add(:paid => :shipped)
-system.add(:shipped => :delivered)
-system.add(:delivered) # terminal state
-system.add(:cancelled) # terminal state
-system.add(:abandoned) # terminal state
-system.lock
+system.add cart: [:submitted, :abandoned]
+system.add submitted: [:paid, :cancelled]
+system.add paid: :shipped
+system.add shipped: :delivered  # delivered auto-created as terminal
+system.lock                     # cancelled & abandoned also auto-created as terminals
 
 # Create the state machine (current state + event behavior)
 machine = StateJacket::StateMachine.new(system, state: :cart)
-machine.on :submit, :cart => :submitted
-machine.on :pay, :submitted => :paid
-machine.on :ship, :paid => :shipped
-machine.on :deliver, :shipped => :delivered
-machine.on :abandon, :cart => :abandoned
-machine.on :cancel, :submitted => :cancelled
+machine.on :submit, cart: :submitted
+machine.on :pay, submitted: :paid
+machine.on :ship, paid: :shipped
+machine.on :deliver, shipped: :delivered
+machine.on :abandon, cart: :abandoned
+machine.on :cancel, submitted: :cancelled
 machine.lock
 ```
 
@@ -249,27 +248,27 @@ class OrderProcessor
 
     result = @machine.trigger(:checkout)
     case result
-    in { success?: true, to: "submitted" }
+    in success?: true, to: "submitted"
       OrderMailer.confirmation_email(@order).deliver_now
-      success("Order submitted successfully")
-    in { failed?: true }
-      failure("Unable to submit order")
+      success "Order submitted successfully"
+    in failed?: true
+      failure "Unable to submit order"
     end
   end
 
   def process_payment!(payment_method)
-    return failure("Invalid payment method") unless valid_payment?(payment_method)
+    return failure("Invalid payment method") unless valid_payment? payment_method
 
     result = @machine.trigger(:payment) do |from, to|
-      charge_payment(payment_method) # business logic in block
+      charge_payment payment_method  # business logic in block
       reserve_inventory              # explicit side effects
     end
 
     case result
-    in { success?: true, to: "paid" }
-      success("Payment processed")
-    in { failed?: true }
-      failure("Payment failed")
+    in success?: true, to: "paid"
+      success "Payment processed"
+    in failed?: true
+      failure "Payment failed"
     end
   end
 
@@ -281,24 +280,19 @@ class OrderProcessor
 
   def build_machine
     system = StateJacket::StateTransitionSystem.new
-    system.add(:cart => [:submitted, :abandoned])
-    system.add(:submitted => [:paid, :cancelled])
-    system.add(:paid => [:shipped, :refunded])
-    system.add(:shipped => [:delivered, :returned])
-    system.add(:delivered)
-    system.add(:cancelled)
-    system.add(:abandoned)
-    system.add(:refunded)
-    system.add(:returned)
+    system.add cart: [:submitted, :abandoned]
+    system.add submitted: [:paid, :cancelled]
+    system.add paid: [:shipped, :refunded]
+    system.add shipped: [:delivered, :returned]  # all destination states auto-created as terminals
     system.lock
 
     machine = StateJacket::StateMachine.new(system, state: @order.status)
-    machine.on :checkout, :cart => :submitted
-    machine.on :payment, :submitted => :paid
-    machine.on :ship, :paid => :shipped
-    machine.on :deliver, :shipped => :delivered
-    machine.on :abandon, :cart => :abandoned
-    machine.on :cancel, :submitted => :cancelled
+    machine.on :checkout, cart: :submitted
+    machine.on :payment, submitted: :paid
+    machine.on :ship, paid: :shipped
+    machine.on :deliver, shipped: :delivered
+    machine.on :abandon, cart: :abandoned
+    machine.on :cancel, submitted: :cancelled
     machine.on :refund, [:paid, :shipped, :delivered] => :refunded
     machine.lock
     machine
@@ -313,11 +307,11 @@ class OrderProcessor
   end
 
   def charge_payment(payment_method)
-    PaymentService.charge(payment_method, @order.total)
+    PaymentService.charge payment_method, @order.total
   end
 
   def reserve_inventory
-    @order.items.each { |item| InventoryService.reserve(item) }
+    @order.items.each { |item| InventoryService.reserve item }
   end
 
   def success(message)
@@ -349,30 +343,30 @@ class UserAccountManager
     return failure("Profile incomplete") unless @user.profile_complete?
 
     result = @machine.trigger(:activate) do |from, to|
-      @user.update!(activated_at: Time.current)
+      @user.update! activated_at: Time.current
       UserMailer.welcome(@user).deliver_now
       track_activation
     end
 
     case result
-    in { success?: true }
-      success("Account activated successfully")
-    in { failed?: true }
-      failure("Unable to activate account")
+    in success?: true
+      success "Account activated successfully"
+    in failed?: true
+      failure "Unable to activate account"
     end
   end
 
   def suspend!(reason)
     result = @machine.trigger(:suspend) do |from, to|
-      @user.update!(suspended_at: Time.current, suspension_reason: reason)
+      @user.update! suspended_at: Time.current, suspension_reason: reason
       UserMailer.suspension_notice(@user, reason).deliver_now
     end
 
     case result
-    in { success?: true }
-      success("Account suspended")
-    in { failed?: true }
-      failure("Unable to suspend account")
+    in success?: true
+      success "Account suspended"
+    in failed?: true
+      failure "Unable to suspend account"
     end
   end
 
@@ -384,17 +378,16 @@ class UserAccountManager
 
   def build_machine
     system = StateJacket::StateTransitionSystem.new
-    system.add(:pending => [:active, :rejected])
-    system.add(:active => [:suspended, :deactivated])
-    system.add(:suspended => [:active, :deactivated])
-    system.add(:deactivated => :active)
-    system.add(:rejected)
+    system.add pending: [:active, :rejected]
+    system.add active: [:suspended, :deactivated]
+    system.add suspended: [:active, :deactivated]
+    system.add deactivated: :active  # rejected auto-created as terminal from first transition
     system.lock
 
     machine = StateJacket::StateMachine.new(system, state: @user.status)
-    machine.on :activate, :pending => :active
-    machine.on :reject, :pending => :rejected
-    machine.on :suspend, :active => :suspended
+    machine.on :activate, pending: :active
+    machine.on :reject, pending: :rejected
+    machine.on :suspend, active: :suspended
     machine.on :deactivate, [:active, :suspended] => :deactivated
     machine.on :reactivate, [:suspended, :deactivated] => :active
     machine.lock
@@ -428,11 +421,11 @@ Match on current state and available actions:
 ```ruby
 def handle_order_state(machine)
   case machine
-  in { state: "pending", actions: events } if events.include?("approve")
+  in state: "pending", actions: events if events.include?("approve")
     render_approval_form
-  in { state: "approved", destinations: ["completed"] }
+  in state: "approved", destinations: ["completed"]
     render_completion_button
-  in { terminal?: true }
+  in terminal?: true
     render_final_status
   else
     render_default_view
@@ -447,13 +440,13 @@ Handle transition outcomes with precise pattern matching:
 ```ruby
 def handle_order_transition(result)
   case result
-  in { success?: true, from: "pending", to: "approved", event: "approve" }
+  in success?: true, from: "pending", to: "approved", event: "approve"
     send_approval_notification
     update_inventory_status
-  in { success?: true, from: "pending", to: "rejected", event: "reject" }
+  in success?: true, from: "pending", to: "rejected", event: "reject"
     send_rejection_notification
     log_rejection_reason
-  in { failed?: true, from: "pending", event: event_name }
+  in failed?: true, from: "pending", event: event_name
     handle_transition_failure(event_name)
   end
 end
@@ -466,13 +459,13 @@ Combine patterns with business logic:
 ```ruby
 def determine_user_permissions(machine)
   case machine
-  in { state: "pending", actions: events } if events.include?("activate")
+  in state: "pending", actions: events if events.include?("activate")
     [:view_profile, :complete_verification]
-  in { state: "active", reachable_states: states } if states.include?("premium")
+  in state: "active", reachable_states: states if states.include?("premium")
     [:read, :write, :comment, :upgrade_to_premium]
-  in { state: "premium", terminal?: false }
+  in state: "premium", terminal?: false
     [:read, :write, :comment, :moderate, :export_data]
-  in { terminal?: true }
+  in terminal?: true
     [:view_profile]
   else
     []
@@ -555,10 +548,10 @@ class Order
     end
 
     case result
-    in { success?: true }
-      success("Payment processed")
-    in { failed?: true }
-      failure("Payment failed")
+    in success?: true
+      success "Payment processed"
+    in failed?: true
+      failure "Payment failed"
     end
   end
 
@@ -569,10 +562,10 @@ class Order
     end
 
     case result
-    in { success?: true }
-      success("Order cancelled")
-    in { failed?: true }
-      failure("Cannot cancel order")
+    in success?: true
+      success "Order cancelled"
+    in failed?: true
+      failure "Cannot cancel order"
     end
   end
 
@@ -584,13 +577,12 @@ class Order
 
   def build_state_machine
     system = StateJacket::StateTransitionSystem.new
-    system.add(:pending => [:paid, :cancelled])
-    system.add(:paid, :cancelled)
+    system.add pending: [:paid, :cancelled]  # paid & cancelled auto-created as terminals
     system.lock
 
     machine = StateJacket::StateMachine.new(system, state: :pending)
-    machine.on :pay, :pending => :paid
-    machine.on :cancel, :pending => :cancelled
+    machine.on :pay, pending: :paid
+    machine.on :cancel, pending: :cancelled
     machine.lock
     machine
   end
@@ -642,7 +634,7 @@ machine.lock
 threads = 10.times.map do
   Thread.new do
     1000.times do
-      machine.can_trigger?(:approve) # Safe concurrent reads
+      machine.can_trigger? :approve  # Safe concurrent reads
       machine.state                  # Safe concurrent reads
     end
   end
@@ -661,9 +653,9 @@ machine.state_symbol # => :pending
 machine.terminal?    # => false
 
 # Available actions
-machine.triggerable_events     # => ["approve", "reject"]
-machine.reachable_states       # => ["approved", "rejected"]
-machine.can_trigger?(:approve) # => true
+machine.triggerable_events  # => ["approve", "reject"]
+machine.reachable_states    # => ["approved", "rejected"]
+machine.can_trigger? :approve # => true
 
 # All events and states
 machine.events # => ["approve", "reject", "cancel"]
@@ -726,21 +718,18 @@ Test business rules independently:
 class OrderTransitionsTest < Minitest::Test
   def setup
     @system = StateJacket::StateTransitionSystem.new
-    @system.add(:pending => [:processing, :cancelled])
-    @system.add(:processing => [:completed, :failed])
-    @system.add(:completed)
-    @system.add(:cancelled)
-    @system.add(:failed)
+    @system.add pending: [:processing, :cancelled]
+    @system.add processing: [:completed, :failed]  # terminals auto-created
     @system.lock
   end
 
   def test_validates_legal_transitions
-    assert @system.can_transition?(:pending => :processing)
-    assert @system.can_transition?(:processing => :completed)
+    assert @system.can_transition? pending: :processing
+    assert @system.can_transition? processing: :completed
   end
 
   def test_rejects_illegal_transitions
-    refute @system.can_transition?(:completed => :pending)
+    refute @system.can_transition? completed: :pending
   end
 end
 ```
@@ -762,7 +751,7 @@ class OrderStateMachineTest < Minitest::Test
   end
 
   def test_returns_failure_for_invalid_transitions
-    result = @machine.trigger(:complete) # Can't complete from pending
+    result = @machine.trigger(:complete)  # Can't complete from pending
     assert result.failed?
     assert_equal "pending", @machine.state
   end
@@ -771,16 +760,13 @@ class OrderStateMachineTest < Minitest::Test
 
   def build_order_machine
     system = StateJacket::StateTransitionSystem.new
-    system.add(:pending => [:processing, :cancelled])
-    system.add(:processing => [:completed, :failed])
-    system.add(:completed)
-    system.add(:cancelled)
-    system.add(:failed)
+    system.add pending: [:processing, :cancelled]
+    system.add processing: [:completed, :failed]  # completed, cancelled & failed auto-created as terminals
     system.lock
 
     machine = StateJacket::StateMachine.new(system, state: :pending)
-    machine.on :process, :pending => :processing
-    machine.on :complete, :processing => :completed
+    machine.on :process, pending: :processing
+    machine.on :complete, processing: :completed
     machine.lock
     machine
   end

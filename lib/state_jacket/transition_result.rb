@@ -7,7 +7,7 @@ module StateJacket
   #   case result
   #   in [true, from_state, to_state, event]
   #     celebrate_publication(from_state, to_state, event)
-  #   in { success?: false, from: state }
+  #   in success?: false, from: state
   #     handle_failure(state)
   #   end
   TransitionResult = Struct.new(:success, :from_state, :to_state, :event) do
@@ -24,7 +24,7 @@ module StateJacket
     end
 
     # Support for hash-style pattern matching with focused, semantic keys
-    # Enables: case result; in { success?: true, from: "draft", to: "published" }; end
+    # Enables: case result; in success?: true, from: "draft", to: "published"; end
     # @rbs keys: Array[Symbol] -- The keys to extract
     # @rbs return: Hash[Symbol, bool | String | String?]
     def deconstruct_keys(keys)

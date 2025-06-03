@@ -46,9 +46,9 @@ require_relative "state_jacket/transition_result"
 #   # Use the state machine
 #   result = machine.trigger(:publish)
 #   case result
-#   in { success?: true, from: "draft", to: "published" }
+#   in success?: true, from: "draft", to: "published"
 #     puts "Successfully published!"
-#   in { success?: false }
+#   in success?: false
 #     puts "Publication failed"
 #   end
 module StateJacket

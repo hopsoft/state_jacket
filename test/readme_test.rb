@@ -589,9 +589,9 @@ class ReadmeTest < Minitest::Test
     # Test pattern matching with transition results
     result = machine.trigger(:checkout)
     action_taken = case result
-    in { success?: true, from: "cart", to: "submitted", event: "checkout" }
+    in success?: true, from: "cart", to: "submitted", event: "checkout"
       :send_confirmation_email
-    in { failed?: true, from: "cart", event: "checkout" }
+    in failed?: true, from: "cart", event: "checkout"
       :show_checkout_error
     else
       :unknown_action
@@ -619,13 +619,13 @@ class ReadmeTest < Minitest::Test
 
     # Test permission determination based on state
     permissions = case machine
-    in { state: "pending", triggerable_events: events } if events.include?("activate")
+    in state: "pending", triggerable_events: events if events.include?("activate")
       [:view_profile, :complete_verification]
-    in { state: "active", reachable_states: states } if states.include?("premium")
+    in state: "active", reachable_states: states if states.include?("premium")
       [:read, :write, :comment, :upgrade_to_premium]
-    in { state: "premium", terminal?: false }
+    in state: "premium", terminal?: false
       [:read, :write, :comment, :moderate, :export_data]
-    in { terminal?: true }
+    in terminal?: true
       [:view_profile]
     else
       []
@@ -723,13 +723,13 @@ class ReadmeTest < Minitest::Test
     result = machine.trigger(:activate)
 
     notification_type = case result
-    in { success?: true, from: "inactive", to: "active", event: "activate" }
+    in success?: true, from: "inactive", to: "active", event: "activate"
       :welcome_email
-    in { success?: true, to: "premium", event: "upgrade" }
+    in success?: true, to: "premium", event: "upgrade"
       :premium_welcome
-    in { success?: true, to: "suspended", event: "suspend" }
+    in success?: true, to: "suspended", event: "suspend"
       :suspension_notice
-    in { failed?: true, event: "upgrade" }
+    in failed?: true, event: "upgrade"
       :payment_failure
     else
       :generic_notification
@@ -756,7 +756,7 @@ class ReadmeTest < Minitest::Test
 
     # Test basic pattern matching
     basic_match = case result
-    in { success?: true, from: "draft", to: "published" }
+    in success?: true, from: "draft", to: "published"
       :basic_matched
     else
       :no_match
@@ -765,7 +765,7 @@ class ReadmeTest < Minitest::Test
 
     # Test event matching
     event_match = case result
-    in { event: "publish", changed?: true }
+    in event: "publish", changed?: true
       :event_matched
     else
       :no_match
@@ -774,7 +774,7 @@ class ReadmeTest < Minitest::Test
 
     # Test StateMachine simplified aliases
     machine_match = case machine
-    in { state: "published", terminal?: true }
+    in state: "published", terminal?: true
       :machine_matched
     else
       :no_match
@@ -783,7 +783,7 @@ class ReadmeTest < Minitest::Test
 
     # Test actions alias
     actions_match = case machine
-    in { actions: actions, destinations: dests } if actions.empty? && dests.empty?
+    in actions: actions, destinations: dests if actions.empty? && dests.empty?
       :terminal_state_matched
     else
       :no_match

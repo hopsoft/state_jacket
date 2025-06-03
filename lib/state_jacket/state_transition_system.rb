@@ -154,7 +154,7 @@ module StateJacket
     end
 
     # Support for pattern matching on transition system properties
-    # Enables: case system; in { states: ["pending", "approved"], locked?: true }; end
+    # Enables: case system; in states: ["pending", "approved"], locked?: true; end
     # @rbs keys: Array[Symbol] -- The keys to extract for pattern matching
     # @rbs return: Hash[Symbol, Array[String] | bool]
     def deconstruct_keys(keys)

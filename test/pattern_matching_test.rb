@@ -22,7 +22,7 @@ class PatternMatchingTest < Minitest::Test
   # StateMachine pattern matching tests
   def test_state_machine_deconstruct_keys
     case @machine
-    in { state: "pending", triggerable_events: events }
+    in state: "pending", triggerable_events: events
       assert_includes events, "approve"
       assert_includes events, "reject"
     else
@@ -35,7 +35,7 @@ class PatternMatchingTest < Minitest::Test
     @machine.trigger(:complete)
 
     case @machine
-    in { state: "completed", terminal?: true }
+    in state: "completed", terminal?: true
       # Expected match
     else
       flunk "Should match terminal state pattern"
@@ -44,7 +44,7 @@ class PatternMatchingTest < Minitest::Test
 
   def test_state_machine_pattern_matching_with_reachable_states
     case @machine
-    in { state: "pending", reachable_states: destinations }
+    in state: "pending", reachable_states: destinations
       assert_includes destinations, "approved"
       assert_includes destinations, "rejected"
     else
@@ -54,7 +54,7 @@ class PatternMatchingTest < Minitest::Test
 
   def test_state_machine_pattern_matching_with_locked_status
     case @machine
-    in { locked?: true, events: events }
+    in locked?: true, events: events
       assert_includes events, "approve"
       assert_includes events, "reject"
       assert_includes events, "complete"
@@ -67,7 +67,7 @@ class PatternMatchingTest < Minitest::Test
   # StateTransitionSystem pattern matching tests
   def test_state_transition_system_deconstruct_keys
     case @transitions
-    in { states: states, locked?: true }
+    in states: states, locked?: true
       assert_includes states, "pending"
       assert_includes states, "approved"
       assert_includes states, "rejected"
@@ -79,7 +79,7 @@ class PatternMatchingTest < Minitest::Test
 
   def test_state_transition_system_pattern_matching_with_transitioners
     case @transitions
-    in { transitioners: trans, terminators: terms }
+    in transitioners: trans, terminators: terms
       assert_includes trans, "pending"
       assert_includes trans, "approved"
       assert_includes trans, "rejected"
@@ -91,7 +91,7 @@ class PatternMatchingTest < Minitest::Test
 
   def test_state_transition_system_pattern_matching_with_specific_counts
     case @transitions
-    in { states: states, terminators: terms } if states.length == 4 && terms.length == 1
+    in states: states, terminators: terms if states.length == 4 && terms.length == 1
       assert_equal ["completed"], terms
     else
       flunk "Should match specific state and terminator counts"
@@ -114,7 +114,7 @@ class PatternMatchingTest < Minitest::Test
     result = @machine.trigger(:approve)
 
     case result
-    in { success?: true, from: "pending", to: "approved", event: "approve" }
+    in success?: true, from: "pending", to: "approved", event: "approve"
       # Expected match
     else
       flunk "Should match successful transition hash pattern"
@@ -126,7 +126,7 @@ class PatternMatchingTest < Minitest::Test
     result = @machine.trigger(:retry) # Can't retry from pending
 
     case result
-    in { failed?: true, from: "pending", to: nil, event: "retry" }
+    in failed?: true, from: "pending", to: nil, event: "retry"
       # Expected match for failed transition
     else
       flunk "Should match failed transition pattern"
@@ -137,7 +137,7 @@ class PatternMatchingTest < Minitest::Test
     result = @machine.trigger(:retry) # Invalid from pending
 
     case result
-    in { failed?: true, from: "pending" }
+    in failed?: true, from: "pending"
       # Expected match
     else
       flunk "Should match failure pattern"
@@ -168,11 +168,11 @@ class PatternMatchingTest < Minitest::Test
   def test_complex_state_based_logic
     handle_machine_state = lambda do |machine|
       case machine
-      in { state: "pending", actions: events } if events.include?("approve")
+      in state: "pending", actions: events if events.include?("approve")
         :can_approve
-      in { state: "approved", destinations: ["completed"] }
+      in state: "approved", destinations: ["completed"]
         :can_complete
-      in { terminal?: true }
+      in terminal?: true
         :terminal
       else
         :unknown
@@ -191,13 +191,13 @@ class PatternMatchingTest < Minitest::Test
   def test_transition_result_routing
     route_transition_result = lambda do |result|
       case result
-      in { success?: true, from: "pending", to: "approved" }
+      in success?: true, from: "pending", to: "approved"
         :approval_path
-      in { success?: true, from: "pending", to: "rejected" }
+      in success?: true, from: "pending", to: "rejected"
         :rejection_path
-      in { success?: true, to: "completed" }
+      in success?: true, to: "completed"
         :completion_path
-      in { failed?: true, from: String => state }
+      in failed?: true, from: String => state
         [:failure_path, state]
       else
         :unknown
@@ -249,11 +249,11 @@ class PatternMatchingTest < Minitest::Test
   def test_pattern_matching_with_guards
     categorize_machine = lambda do |machine|
       case machine
-      in { state: String => state, triggerable_events: [] }
+      in state: String => state, triggerable_events: []
         [:terminal, state]
-      in { state: String => state, actions: events } if events.length > 1
+      in state: String => state, actions: events if events.length > 1
         [:multiple_options, state, events.length]
-      in { state: String => state, actions: [event] }
+      in state: String => state, actions: [event]
         [:single_option, state, event]
       else
         :unknown

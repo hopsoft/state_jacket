@@ -213,7 +213,7 @@ module StateJacket
     end
 
     # Support for pattern matching on machine state and properties
-    # Enables: case machine; in { state: "pending", actions: ["submit"] }; end
+    # Enables: case machine; in state: "pending", actions: ["submit"]; end
     # @rbs keys: Array[Symbol] -- The keys to extract for pattern matching
     # @rbs return: Hash[Symbol, String | Array[String] | bool]
     def deconstruct_keys(keys)
