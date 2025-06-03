@@ -246,8 +246,8 @@ class ApiConvenienceMethodsTest < Minitest::Test
     machine = StateJacket::StateMachine.new(@transitions, state: :draft)
     machine.on :submit, draft: :review
     machine.on :publish, review: :published
-    machine.on :archive, {draft: :archived, published: :archived}
-    machine.on :revise, {review: :draft, published: :draft}
+    machine.on :archive, [:draft, :published] => :archived
+    machine.on :revise, [:review, :published] => :draft
     machine.lock
 
     # Draft state

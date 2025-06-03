@@ -116,8 +116,11 @@ class StateMachineTest < Minitest::Test
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
     machine.lock
-    assert machine.trigger(:open) == "opened"
-    assert machine.trigger(:open).nil?
+    result1 = machine.trigger(:open)
+    assert result1.success?
+    assert_equal "opened", result1.to_state
+    result2 = machine.trigger(:open)
+    assert result2.failed?
   end
 
   def test_trigger_event_sets_matching_state_with_block
@@ -199,12 +202,12 @@ class StateMachineTest < Minitest::Test
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
-    machine.on :break, {closed: :errored, opened: :errored}
+    machine.on :error, {closed: :errored, opened: :errored}
     machine.lock
 
     available = machine.triggerable_events
     assert_includes available, "open"
-    assert_includes available, "break"
+    assert_includes available, "error"
     refute_includes available, "close"
   end
 
@@ -215,7 +218,7 @@ class StateMachineTest < Minitest::Test
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
-    machine.on :break, {closed: :errored, opened: :errored}
+    machine.on :error, {closed: :errored, opened: :errored}
     machine.lock
 
     available = machine.reachable_states
@@ -230,11 +233,11 @@ class StateMachineTest < Minitest::Test
     @transitions.add :errored
     machine = StateJacket::StateMachine.new(@transitions, state: :closed)
     machine.on :open, closed: :opened
-    machine.on :break, {closed: :errored, opened: :errored}
+    machine.on :error, {closed: :errored, opened: :errored}
     machine.lock
 
     refute machine.terminal?
-    machine.trigger(:break)
+    machine.trigger(:error)
     assert machine.terminal?
   end
 

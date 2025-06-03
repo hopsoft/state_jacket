@@ -130,9 +130,9 @@ class EdgeCasesTest < Minitest::Test
     machine.on :go, middle: :end
     machine.lock
 
-    # trigger returns nil when transition doesn't match current state
+    # trigger returns failure result when transition doesn't match current state
     result = machine.trigger(:go)
-    assert result.nil?
+    assert result.failed?
     assert machine.state == "start"
   end
 

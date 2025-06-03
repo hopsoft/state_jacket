@@ -133,7 +133,7 @@ class InputValidationTest < Minitest::Test
     error = assert_raises(ArgumentError) do
       machine.on :go, undefined: :end
     end
-    assert_equal "illegal transition: source state 'undefined' is not defined in the transition system", error.message
+    assert_equal "illegal transition: from state 'undefined' is not defined in the transition system", error.message
   end
 
   def test_trigger_validates_undefined_event

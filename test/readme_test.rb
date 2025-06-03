@@ -36,13 +36,13 @@ class ReadmeTest < Minitest::Test
     # Define events that trigger the transitions
     machine.on :open, closed: :opened                            # "open" event: closed → opened
     machine.on :close, opened: :closed                            # "close" event: opened → closed
-    machine.on :break, {closed: :errored, opened: :errored}    # "break" event: any → errored
+    machine.on :error, [:closed, :opened] => :errored    # "error" event: any → errored
     machine.lock                                                     # lock it down (prevents changes)
 
     # Introspect the machine
-    expected_to_h = {"open" => [{"closed" => "opened"}], "close" => [{"opened" => "closed"}], "break" => [{"closed" => "errored"}, {"opened" => "errored"}]}
+    expected_to_h = {"open" => [{"closed" => "opened"}], "close" => [{"opened" => "closed"}], "error" => [{"closed" => "errored"}, {"opened" => "errored"}]}
     assert_equal(expected_to_h, machine.to_h)
-    assert_equal(["open", "close", "break"], machine.events)
+    assert_equal(["open", "close", "error"], machine.events)
     assert_equal("closed", machine.state)
 
     # Check event availability
@@ -53,7 +53,8 @@ class ReadmeTest < Minitest::Test
 
     # Trigger transitions
     result = machine.trigger(:open)
-    assert_equal("opened", result)
+    assert result.success?
+    assert_equal("opened", result.to_state)
     assert_equal("opened", machine.state)
 
     machine.trigger(:close)
@@ -69,9 +70,9 @@ class ReadmeTest < Minitest::Test
     assert(callback_executed)
     assert_equal("opened", machine.state)
 
-    # Failed transitions return nil
+    # Failed transitions return failure result
     result = machine.trigger(:open)
-    assert_nil(result)
+    assert result.failed?
     assert_equal("opened", machine.state)
 
     # Exception handling in callbacks
@@ -147,12 +148,13 @@ class ReadmeTest < Minitest::Test
 
     # Triggering events
     result = machine.trigger(:start)
-    assert_equal("processing", result)
+    assert result.success?
+    assert_equal("processing", result.to_state)
     assert_equal("processing", machine.state)
 
-    # Events that can't be triggered return nil
+    # Events that can't be triggered return failure result
     result = machine.trigger(:start)
-    assert_nil(result)
+    assert result.failed?
   end
 
   def test_type_flexibility
@@ -184,18 +186,21 @@ class ReadmeTest < Minitest::Test
     machine.on :advance, {draft: :review, review: :published}
 
     # One event, same destination from multiple sources
-    machine.on :reset, {review: :draft, published: :draft}
+    machine.on :reset, [:review, :published] => :draft
 
     machine.lock
 
     # Test the workflow
-    machine.trigger(:advance)
+    result1 = machine.trigger(:advance)
+    assert result1.success?
     assert_equal("review", machine.state)
 
-    machine.trigger(:advance)
+    result2 = machine.trigger(:advance)
+    assert result2.success?
     assert_equal("published", machine.state)
 
-    machine.trigger(:reset)
+    result3 = machine.trigger(:reset)
+    assert result3.success?
     assert_equal("draft", machine.state)
   end
 
@@ -362,9 +367,9 @@ class ReadmeTest < Minitest::Test
         machine.on :pay, submitted: :paid
         machine.on :ship, paid: :shipped
         machine.on :deliver, shipped: :delivered
-        machine.on :cancel, {cart: :cancelled, submitted: :cancelled}
-        machine.on :refund, {paid: :refunded, shipped: :refunded, delivered: :refunded}
-        machine.on :return, {shipped: :returned, delivered: :returned}
+        machine.on :cancel, [:cart, :submitted] => :cancelled
+        machine.on :refund, [:paid, :shipped, :delivered] => :refunded
+        machine.on :return, [:shipped, :delivered] => :returned
         machine.lock
         machine
       end
@@ -407,8 +412,8 @@ class ReadmeTest < Minitest::Test
     machine.on :activate, pending: :active
     machine.on :reject, pending: :rejected
     machine.on :suspend, active: :suspended
-    machine.on :reactivate, {suspended: :active, deactivated: :active}
-    machine.on :deactivate, {active: :deactivated, suspended: :deactivated}
+    machine.on :reactivate, [:suspended, :deactivated] => :active
+    machine.on :deactivate, [:active, :suspended] => :deactivated
     machine.lock
 
     # Test account activation
@@ -444,12 +449,12 @@ class ReadmeTest < Minitest::Test
     system.lock
 
     machine = StateJacket::StateMachine.new(system, state: :draft)
-    machine.on :submit, {draft: :submitted, needs_revision: :submitted}
+    machine.on :submit, [:draft, :needs_revision] => :submitted
     machine.on :approve, submitted: :approved
     machine.on :reject, submitted: :rejected
     machine.on :request_changes, submitted: :needs_revision
     machine.on :publish, approved: :published
-    machine.on :archive, {draft: :archived, needs_revision: :archived, rejected: :archived, published: :archived}
+    machine.on :archive, [:draft, :needs_revision, :rejected, :published] => :archived
     machine.on :revise, rejected: :draft
     machine.lock
 
@@ -496,11 +501,15 @@ class ReadmeTest < Minitest::Test
 
     assert_equal("pending", machine.state)
 
-    assert_equal("processing", machine.trigger(:process))
+    # Test transition validity
+    result = machine.trigger(:process)
+    assert result.success?
+    assert_equal("processing", result.to_state)
     assert_equal("processing", machine.state)
 
     # Test invalid transition - can't process again from processing state
-    assert_nil(machine.trigger(:process))      # Can't process from processing
+    invalid_result = machine.trigger(:process)      # Can't process from processing
+    assert invalid_result.failed?
     assert_equal("processing", machine.state)  # State unchanged
 
     # Test callback execution
@@ -556,5 +565,229 @@ class ReadmeTest < Minitest::Test
     assert(machine2.can_trigger?(:reset))
     machine2.trigger(:reset)
     assert_equal("target", machine2.state)
+  end
+
+  def test_real_world_pattern_matching_examples
+    # Test E-commerce Order Processing pattern matching
+    system = StateJacket::StateTransitionSystem.new
+    system.add cart: [:submitted, :cancelled]
+    system.add submitted: [:paid, :cancelled]
+    system.add paid: [:shipped, :refunded]
+    system.add shipped: [:delivered]
+    system.add :delivered
+    system.add :cancelled
+    system.add :refunded
+    system.lock
+
+    machine = StateJacket::StateMachine.new(system, state: :cart)
+    machine.on :checkout, cart: :submitted
+    machine.on :payment, submitted: :paid
+    machine.on :ship, paid: :shipped
+    machine.on :cancel, [:cart, :submitted] => :cancelled
+    machine.lock
+
+    # Test pattern matching with transition results
+    result = machine.trigger(:checkout)
+    action_taken = case result
+    in { success?: true, from: "cart", to: "submitted", event: "checkout" }
+      :send_confirmation_email
+    in { failed?: true, from: "cart", event: "checkout" }
+      :show_checkout_error
+    else
+      :unknown_action
+    end
+
+    assert_equal :send_confirmation_email, action_taken
+    assert_equal "submitted", machine.state
+  end
+
+  def test_user_permission_pattern_matching
+    # Test User Permission System pattern matching
+    system = StateJacket::StateTransitionSystem.new
+    system.add pending: [:active, :rejected]
+    system.add active: [:premium, :suspended]
+    system.add premium: [:active, :suspended]
+    system.add suspended: [:active]
+    system.add :rejected
+    system.lock
+
+    machine = StateJacket::StateMachine.new(system, state: :pending)
+    machine.on :activate, pending: :active
+    machine.on :upgrade, active: :premium
+    machine.on :suspend, [:active, :premium] => :suspended
+    machine.lock
+
+    # Test permission determination based on state
+    permissions = case machine
+    in { state: "pending", triggerable_events: events } if events.include?("activate")
+      [:view_profile, :complete_verification]
+    in { state: "active", reachable_states: states } if states.include?("premium")
+      [:read, :write, :comment, :upgrade_to_premium]
+    in { state: "premium", terminal?: false }
+      [:read, :write, :comment, :moderate, :export_data]
+    in { terminal?: true }
+      [:view_profile]
+    else
+      []
+    end
+
+    assert_includes permissions, :view_profile
+    assert_includes permissions, :complete_verification
+  end
+
+  def test_api_response_formatting_pattern_matching
+    # Test API Response Formatting pattern matching
+    system = StateJacket::StateTransitionSystem.new
+    system.add pending: [:processing, :cancelled]
+    system.add processing: [:completed, :failed]
+    system.add :completed
+    system.add :cancelled
+    system.add :failed
+    system.lock
+
+    machine = StateJacket::StateMachine.new(system, state: :pending)
+    machine.on :process, pending: :processing
+    machine.on :complete, processing: :completed
+    machine.lock
+
+    result = machine.trigger(:process)
+
+    response = case [machine, result]
+    in [{ state: "completed" }, { success?: true }]
+      {status: "success", final: true}
+    in [{ triggerable_events: events }, { success?: true, to: String => new_state }]
+      {status: "success", current_state: new_state, available_actions: events}
+    in [{ state: String => current }, { failure?: true, event: String => failed_event }]
+      {status: "error", current_state: current, failed_event: failed_event}
+    else
+      {status: "unknown"}
+    end
+
+    assert_equal "success", response[:status]
+    assert_equal "processing", response[:current_state]
+    assert response[:available_actions].is_a?(Array)
+  end
+
+  def test_error_recovery_pattern_matching
+    # Test Error Recovery Patterns pattern matching
+    system = StateJacket::StateTransitionSystem.new
+    system.add idle: [:processing, :failed]
+    system.add processing: [:completed, :failed]
+    system.add failed: [:processing, :abandoned]
+    system.add :completed
+    system.add :abandoned
+    system.lock
+
+    machine = StateJacket::StateMachine.new(system, state: :idle)
+    machine.on :start, idle: :processing
+    machine.on :complete, processing: :completed
+    machine.on :fail, [:processing, :idle] => :failed
+    machine.on :retry, failed: :processing
+    machine.lock
+
+    # Simulate failure and test recovery pattern
+    machine.trigger(:start)
+    failure_result = machine.trigger(:fail)
+    attempt_count = 1
+
+    recovery_action = case [failure_result, attempt_count]
+    in [{ success?: true, to: "failed" }, count] if count < 3
+      :retry_after_delay
+    in [{ success?: true, to: "failed" }, count] if count >= 3
+      :escalate_to_manual_review
+    in [{ failure?: true }, _]
+      :log_error_and_alert
+    else
+      :unknown_recovery
+    end
+
+    assert_equal :retry_after_delay, recovery_action
+    assert_equal "failed", machine.state
+  end
+
+  def test_notification_system_pattern_matching
+    # Test Notification System pattern matching
+    system = StateJacket::StateTransitionSystem.new
+    system.add inactive: [:active]
+    system.add active: [:premium, :suspended]
+    system.add premium: [:active]
+    system.add :suspended
+    system.lock
+
+    machine = StateJacket::StateMachine.new(system, state: :inactive)
+    machine.on :activate, inactive: :active
+    machine.on :upgrade, active: :premium
+    machine.on :suspend, active: :suspended
+    machine.lock
+
+    result = machine.trigger(:activate)
+
+    notification_type = case result
+    in { success?: true, from: "inactive", to: "active", event: "activate" }
+      :welcome_email
+    in { success?: true, to: "premium", event: "upgrade" }
+      :premium_welcome
+    in { success?: true, to: "suspended", event: "suspend" }
+      :suspension_notice
+    in { failed?: true, event: "upgrade" }
+      :payment_failure
+    else
+      :generic_notification
+    end
+
+    assert_equal :welcome_email, notification_type
+    assert_equal "active", machine.state
+  end
+
+  def test_semantic_aliases_pattern_matching
+    # Test simplified pattern matching in TransitionResult
+    system = StateJacket::StateTransitionSystem.new
+    system.add draft: [:published, :rejected]
+    system.add :published
+    system.add :rejected
+    system.lock
+
+    machine = StateJacket::StateMachine.new(system, state: :draft)
+    machine.on :publish, draft: :published
+    machine.on :reject, draft: :rejected
+    machine.lock
+
+    result = machine.trigger(:publish)
+
+    # Test basic pattern matching
+    basic_match = case result
+    in { success?: true, from: "draft", to: "published" }
+      :basic_matched
+    else
+      :no_match
+    end
+    assert_equal :basic_matched, basic_match
+
+    # Test event matching
+    event_match = case result
+    in { event: "publish", changed?: true }
+      :event_matched
+    else
+      :no_match
+    end
+    assert_equal :event_matched, event_match
+
+    # Test StateMachine simplified aliases
+    machine_match = case machine
+    in { state: "published", terminal?: true }
+      :machine_matched
+    else
+      :no_match
+    end
+    assert_equal :machine_matched, machine_match
+
+    # Test actions alias
+    actions_match = case machine
+    in { actions: actions, destinations: dests } if actions.empty? && dests.empty?
+      :terminal_state_matched
+    else
+      :no_match
+    end
+    assert_equal :terminal_state_matched, actions_match
   end
 end

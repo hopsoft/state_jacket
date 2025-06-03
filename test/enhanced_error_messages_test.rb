@@ -78,7 +78,7 @@ class EnhancedErrorMessagesTest < Minitest::Test
     error = assert_raises(ArgumentError) do
       machine.on :go, invalid: :end
     end
-    assert_equal "illegal transition: source state 'invalid' is not defined in the transition system", error.message
+    assert_equal "illegal transition: from state 'invalid' is not defined in the transition system", error.message
   end
 
   def test_state_machine_illegal_transition_with_invalid_destination_error
