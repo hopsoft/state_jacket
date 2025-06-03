@@ -38,7 +38,7 @@ module StateJacket
       raise ArgumentError, "transition_system cannot be nil" if transition_system.nil?
 
       transition_system.lock
-      raise ArgumentError, "illegal state '#{state}'. Available states: #{format_list(transition_system.states)}" unless transition_system.is_state?(state)
+      raise ArgumentError, "illegal state '#{state}'. Available states: #{format_list(transition_system.states)}" unless transition_system.state?(state)
       @transition_system = transition_system
       @state = state.to_s
       @triggers = {}
@@ -90,7 +90,7 @@ module StateJacket
     # Terminal states have no outgoing transitions defined in the transition system
     # @rbs return: bool -- true if current state is terminal, false if it has outgoing transitions
     def terminal?
-      transition_system.is_terminator?(state)
+      transition_system.terminator?(state)
     end
 
     # Returns the current state as a symbol for convenience
@@ -192,14 +192,14 @@ module StateJacket
 
     # Checks if the state machine is locked (preventing addition of new events)
     # @rbs return: bool -- true if locked, false if still accepting new event definitions
-    def is_locked?
+    def locked?
       !!@locked
     end
 
     # Checks if an event has been defined in the state machine
     # @rbs event: String | Symbol | BasicObject -- The event to check (converted to String via to_s)
     # @rbs return: bool -- true if the event is defined, false otherwise
-    def is_event?(event)
+    def event?(event)
       @triggers.has_key? event.to_s
     end
 
@@ -225,8 +225,8 @@ module StateJacket
 
         # Status flags
         locked?: @locked,
-        terminal?: @transition_system.is_terminator?(@state),
-        active?: @locked && !@transition_system.is_terminator?(@state),
+        terminal?: @transition_system.terminator?(@state),
+        active?: @locked && !@transition_system.terminator?(@state),
 
         # Legacy aliases for backward compatibility
         events: @triggers.keys,
@@ -245,7 +245,7 @@ module StateJacket
       # Match active machines (locked and not terminal)
       # Usage: case machine; in Active; end
       Active = ->(machine) {
-        machine.is_a?(StateMachine) && machine.is_locked? && !machine.terminal?
+        machine.is_a?(StateMachine) && machine.locked? && !machine.terminal?
       }
 
       # Match machines that can trigger a specific action
@@ -253,7 +253,7 @@ module StateJacket
       PendingAction = ->(action) do
         ->(machine) {
           machine.is_a?(StateMachine) &&
-            machine.is_locked? &&
+            machine.locked? &&
             machine.can_trigger?(action)
         }
       end
@@ -271,7 +271,7 @@ module StateJacket
       CanReach = ->(state) do
         ->(machine) {
           machine.is_a?(StateMachine) &&
-            machine.is_locked? &&
+            machine.locked? &&
             machine.reachable_states.include?(state.to_s)
         }
       end
@@ -306,7 +306,7 @@ module StateJacket
       return if @transition_system.can_transition?(origin => destination)
 
       origin_str, destination_str = origin.to_s, destination.to_s
-      unless @transition_system.is_state?(origin_str)
+      unless @transition_system.state?(origin_str)
         raise ArgumentError, "illegal transition: from state '#{origin_str}' is not defined in the transition system"
       end
 

@@ -125,7 +125,7 @@ class ArraySyntaxTest < Minitest::Test
     machine.lock
 
     # Should not create event since no transitions were added
-    refute machine.is_event?(:noop)
+    refute machine.event?(:noop)
     assert_nil machine.to_h["noop"]
   end
 

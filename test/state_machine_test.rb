@@ -28,7 +28,7 @@ class StateMachineTest < Minitest::Test
     @transitions.add opened: [:closed, :errored]
     @transitions.add closed: [:opened, :errored]
     StateJacket::StateMachine.new(@transitions, state: :closed)
-    assert @transitions.is_locked?
+    assert @transitions.locked?
   end
 
   def test_creating_an_event_that_has_an_illegal_transition_fails
@@ -75,7 +75,7 @@ class StateMachineTest < Minitest::Test
     machine.on :open, closed: :opened
     machine.on :close, opened: :closed
     assert machine.lock
-    assert machine.is_locked?
+    assert machine.locked?
     begin
       machine.on :error, closed: :opened
     rescue => e

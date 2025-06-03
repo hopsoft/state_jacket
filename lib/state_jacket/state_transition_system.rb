@@ -76,7 +76,7 @@ module StateJacket
 
     # Checks if the transition system is locked (preventing further modifications)
     # @rbs return: bool -- true if locked, false if still accepting new states/transitions
-    def is_locked?
+    def locked?
       !!@locked
     end
 
@@ -135,21 +135,21 @@ module StateJacket
     # Checks if a given value is a valid state defined in the system
     # @rbs state: String | Symbol | BasicObject -- State to check (converted to String via to_s)
     # @rbs return: bool -- true if the state exists in the system, false otherwise
-    def is_state?(state)
+    def state?(state)
       @transitions.key? state.to_s
     end
 
     # Checks if a state is a terminal state with no outgoing transitions
     # @rbs state: String | Symbol | BasicObject -- State to check (converted to String via to_s)
     # @rbs return: bool -- true if the state is terminal, false if it has outgoing transitions or doesn't exist
-    def is_terminator?(state)
+    def terminator?(state)
       terminators.include?(state.to_s)
     end
 
     # Checks if a state has outgoing transitions to other states
     # @rbs state: String | Symbol | BasicObject -- State to check (converted to String via to_s)
     # @rbs return: bool -- true if the state has outgoing transitions, false if terminal or doesn't exist
-    def is_transitioner?(state)
+    def transitioner?(state)
       transitioners.include?(state.to_s)
     end
 
@@ -162,7 +162,7 @@ module StateJacket
         states: states,
         transitioners: transitioners,
         terminators: terminators,
-        locked?: is_locked?
+        locked?: locked?
       }.slice(*keys)
     end
 

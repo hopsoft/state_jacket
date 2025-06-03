@@ -18,10 +18,10 @@ class StateJacketTest < Minitest::Test
     assert @transitions.terminators == ["finished"]
   end
 
-  def test_is_terminator
+  def test_terminator
     @transitions.add started: [:finished]
     @transitions.lock
-    assert @transitions.is_terminator?(:finished)
+    assert @transitions.terminator?(:finished)
   end
 
   def test_transitioners
@@ -30,10 +30,10 @@ class StateJacketTest < Minitest::Test
     assert @transitions.transitioners == ["started"]
   end
 
-  def test_is_transitioner
+  def test_transitioner
     @transitions.add started: [:finished]
     @transitions.lock
-    assert @transitions.is_transitioner?(:started)
+    assert @transitions.transitioner?(:started)
   end
 
   def test_can_transition
@@ -42,11 +42,11 @@ class StateJacketTest < Minitest::Test
     assert @transitions.can_transition?(started: :finished)
   end
 
-  def test_is_state
+  def test_state
     @transitions.add started: [:finished]
     @transitions.lock
-    assert @transitions.is_state?(:started)
-    assert @transitions.is_state?(:finished)
+    assert @transitions.state?(:started)
+    assert @transitions.state?(:finished)
   end
 
   def test_lock_success

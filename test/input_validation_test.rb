@@ -162,8 +162,8 @@ class InputValidationTest < Minitest::Test
   # Edge cases that should work (nil converted to string)
   def test_nil_state_converts_to_empty_string
     @transitions.add nil
-    assert @transitions.is_state?("")
-    assert @transitions.is_state?(nil)
+    assert @transitions.state?("")
+    assert @transitions.state?(nil)
   end
 
   def test_nil_in_transition_hash_converts_to_string
@@ -185,8 +185,8 @@ class InputValidationTest < Minitest::Test
     machine.on nil, start: :end
     machine.lock
 
-    assert machine.is_event?("")
-    assert machine.is_event?(nil)
+    assert machine.event?("")
+    assert machine.event?(nil)
   end
 
   # Complex validation scenarios

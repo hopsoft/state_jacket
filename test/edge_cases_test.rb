@@ -11,28 +11,28 @@ class EdgeCasesTest < Minitest::Test
   def test_add_nil_state
     # nil.to_s returns "", so this actually works
     @transitions.add nil
-    assert @transitions.is_state?("")
+    assert @transitions.state?("")
   end
 
   def test_add_empty_string_state
     @transitions.add ""
-    assert @transitions.is_state?("")
+    assert @transitions.state?("")
   end
 
   def test_add_state_with_special_characters
     @transitions.add "state-with-special_chars!"
-    assert @transitions.is_state?("state-with-special_chars!")
+    assert @transitions.state?("state-with-special_chars!")
   end
 
   def test_add_unicode_state
     @transitions.add "状態"
-    assert @transitions.is_state?("状態")
+    assert @transitions.state?("状態")
   end
 
   def test_add_very_long_state_name
     long_name = "a" * 1000
     @transitions.add long_name
-    assert @transitions.is_state?(long_name)
+    assert @transitions.state?(long_name)
   end
 
   def test_can_transition_with_empty_hash
@@ -176,8 +176,8 @@ class EdgeCasesTest < Minitest::Test
     machine.on 123, start: :end
     machine.lock
 
-    assert machine.is_event?("123")
-    assert machine.is_event?(123)
+    assert machine.event?("123")
+    assert machine.event?(123)
     assert machine.can_trigger?("123")
     assert machine.can_trigger?(123)
   end
@@ -217,7 +217,7 @@ class EdgeCasesTest < Minitest::Test
     assert @transitions.states.length == 1000
     assert @transitions.can_transition?(1 => 2)
     assert @transitions.can_transition?(999 => 1000)
-    assert @transitions.is_terminator?(1000)
+    assert @transitions.terminator?(1000)
   end
 
   def test_complex_branching_scenario
@@ -269,6 +269,6 @@ class EdgeCasesTest < Minitest::Test
     assert machine.state == "error"
 
     # Should not be able to transition from error
-    assert !machine.can_trigger?(:connect)
+    refute machine.can_trigger?(:connect)
   end
 end

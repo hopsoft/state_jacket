@@ -196,7 +196,7 @@ class PerformanceTest < Minitest::Test
     benchmark_result = Benchmark.measure do
       # Test event existence checks
       2000.times do |i|
-        machine.is_event?("event_#{i % 1000}")
+        machine.event?("event_#{i % 1000}")
         machine.can_trigger?("event_#{i % 1000}")
       end
     end

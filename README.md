@@ -8,83 +8,51 @@
 
 **A modern Ruby state machine library with clean two-layer architecture, Ruby 3+ pattern matching, and exceptional performance.**
 
+StateJacket eliminates state management headaches for Ruby developers by providing a lightweight, thread-safe state machine that keeps your application's logic clean, predictable, and easy to reason about and maintain.
+
 <!-- toc -->
 
-- [Why StateJacket?](#why-statejacket)
 - [Quick Start](#quick-start)
-- [Core Concepts](#core-concepts)
+- [Why StateJacket?](#why-statejacket)
+- [Core Architecture](#core-architecture)
 - [Real-World Examples](#real-world-examples)
 - [Pattern Matching](#pattern-matching)
 - [Migration Guide](#migration-guide)
 - [Advanced Features](#advanced-features)
 - [Performance & Production](#performance--production)
 - [Testing](#testing)
-- [Installation](#installation-1)
+- [Installation](#installation)
 - [Requirements](#requirements)
 - [Contributing](#contributing)
 - [License](#license)
 
 <!-- tocstop -->
 
-## Why StateJacket?
-
-### For Modern Ruby Applications
-
-✅ **Ruby 3+ pattern matching** - Handle transitions with elegant case/in expressions
-✅ **Clean architecture** - Separate business rules from event logic
-✅ **Thread-safe by design** - Immutable after locking for concurrent access
-✅ **O(1) performance** - Consistent speed regardless of complexity
-✅ **Type safety** - Full RBS support for better development experience
-
-### Compared to AASM/StateMachines
-
-**StateJacket encourages explicit, testable code:**
-
-```ruby
-# Instead of hidden guard methods...
-case result
-in { success?: true, from: "pending", to: "approved" }
-  send_approval_notification
-  update_inventory_status
-in { failed?: true, from: state }
-  handle_validation_failure(state)
-end
-```
-
-**Key advantages:**
-
-- Explicit validation over implicit guards (more testable)
-- Superior performance characteristics
-- Modern Ruby 3+ features
-- Clean separation of concerns
-
 ## Quick Start
 
-### Installation
+Get started with StateJacket in under 30 seconds:
 
 ```bash
 gem install state_jacket
 ```
 
-### Basic Usage
-
 ```ruby
 require 'state_jacket'
 
-# 1. Define business rules (what transitions are valid)
+# 1. Define valid state transitions (the domain rules)
 system = StateJacket::StateTransitionSystem.new
-system.add(pending: [:approved, :rejected])
-system.add(:approved)  # terminal state
-system.add(:rejected)  # terminal state
-system.lock
+system.add(:pending => [:approved, :rejected]) # pending can go to approved or rejected
+system.add(:approved)                          # approved is terminal (no further transitions)
+system.add(:rejected)                          # rejected is terminal
+system.lock                                    # make immutable for thread safety
 
-# 2. Create state machine (current state + event behavior)
+# 2. Create state machine with current state and event handlers
 machine = StateJacket::StateMachine.new(system, state: :pending)
-machine.on :approve, pending: :approved
-machine.on :reject, pending: :rejected
+machine.on :approve, :pending => :approved # :approve event transitions pending -> approved
+machine.on :reject, :pending => :rejected  # :reject event transitions pending -> rejected
 machine.lock
 
-# 3. Use with pattern matching
+# 3. Trigger transitions and handle results with pattern matching
 result = machine.trigger(:approve)
 case result
 in { success?: true, to: "approved" }
@@ -96,69 +64,138 @@ end
 puts machine.state  # => "approved"
 ```
 
+> [!NOTE] > **Hash Rocket Syntax for Transitions**
+>
+> StateJacket supports both hash syntax styles, but we recommend hash rockets (`=>`) for state transitions because they visually represent directional flow: `pending => approved` clearly shows the transition direction, making state machine definitions more readable and intuitive.
+
 ### Key Methods
 
 ```ruby
 # State machine introspection
-machine.state                    # => "approved"
-machine.events                   # => ["approve", "reject"]
-machine.can_trigger?(:approve)   # => false (already approved)
-machine.terminal?                # => true
+machine.state                  # => "approved"
+machine.events                 # => ["approve", "reject"]
+machine.can_trigger?(:approve) # => false (already approved)
+machine.terminal?              # => true
 
 # Transition system introspection
-system.states                    # => ["pending", "approved", "rejected"]
-system.can_transition?(pending: :approved)  # => true
+system.states # => ["pending", "approved", "rejected"]
+system.can_transition?(:pending => :approved) # => true
 ```
 
-## Core Concepts
+## Why StateJacket?
 
-### The Two-Layer Architecture
+### The Problem
 
-StateJacket's key innovation is separating **business rules** from **behavior**:
+Traditional state machines mix business rules with event handling, making them hard to test, debug, and maintain. They also typically suffer from performance issues and lack modern Ruby features.
 
-#### Layer 1: StateTransitionSystem (Business Rules)
+### The Solution
 
-Defines _what_ transitions are valid - your domain's fundamental rules.
+StateJacket introduces a **two-layer architecture** that separates concerns:
+
+1. **StateTransitionSystem** - Defines _what_ transitions are valid (domain rules)
+2. **StateMachine** - Manages _how_ transitions happen (current state + events)
+
+### Key Benefits
+
+- [x] **Ruby 3+ pattern matching** - Handle transitions with elegant case/in expressions
+- [x] **Clean architecture** - Separate domain rules from event logic
+- [x] **Thread-safe by design** - Immutable after locking for concurrent access
+- [x] **Exceptional performance** - 1.7M+ transitions/second with O(1) lookup complexity
+- [x] **Zero dependencies** - Small bundle size, fast load time, no version conflicts
+- [x] **Framework agnostic** - Works anywhere Ruby works (Rails, Sinatra, plain Ruby, etc.)
+- [x] **Type safety** - Full RBS support for better development experience
+- [x] **Superior debugging** - Rich introspection and clear error messages
+- [x] **Explicit validation** - No hidden guard methods or callbacks
+- [x] **Production ready** - Comprehensive error handling and graceful failures
+
+### Compared to AASM/StateMachines
+
+**StateJacket encourages explicit, testable code:**
 
 ```ruby
+# Instead of hidden guard methods and callbacks...
+case result
+in { success?: true, from: "pending", to: "approved" }
+  send_approval_notification       # explicit business logic
+  update_inventory_status          # clear side effects
+in { failed?: true, from: state }
+  handle_validation_failure(state) # explicit error handling
+end
+```
+
+**Key advantages over traditional libraries:**
+
+- Zero dependencies (vs. multiple gem dependencies)
+- Explicit validation over implicit guards (more testable)
+- Superior performance characteristics (O(1) vs O(n) lookups)
+- Modern Ruby 3+ features (pattern matching, rightward assignment)
+- Clean separation of concerns (business rules vs. event logic)
+- No magic callbacks or hidden behavior (explicit > implicit)
+- Framework agnostic (works everywhere Ruby works)
+- Better debugging experience (rich introspection)
+
+### Developer Experience
+
+StateJacket prioritizes developer productivity and maintainability:
+
+- **Fast feedback loop** - Immediate validation errors with helpful messages
+- **Rich introspection** - Inspect states, events, and transitions at runtime
+- **Minimal API surface** - Small, focused API that's easy to learn and remember
+- **No magic** - Explicit behavior, no hidden callbacks or surprise side effects
+- **Easy testing** - Separation of concerns makes unit testing straightforward
+- **Migration friendly** - Simple patterns for migrating from any state machine library
+- **Documentation** - Comprehensive examples and clear architectural guidance
+
+## Core Architecture
+
+### Understanding the Layers
+
+Think of StateJacket like a **railway system**:
+
+#### Layer 1: StateTransitionSystem (The Railway Network)
+
+Defines the **tracks and stations** - what routes are physically possible.
+
+```ruby
+# Define the railway network (domain rules)
 system = StateJacket::StateTransitionSystem.new
-system.add(draft: [:review, :archived])
-system.add(review: [:published, :draft])
-system.add(published: [:archived])
-system.add(:archived)  # terminal
+system.add(:station_a => [:station_b, :station_c]) # routes from station A
+system.add(:station_b => :station_c)               # routes from station B
+system.add(:station_c)                             # terminal station
 system.lock
 ```
 
-#### Layer 2: StateMachine (Behavior)
+#### Layer 2: StateMachine (The Train)
 
-Manages _how_ transitions happen - current state and events.
+Manages the **current location and movement** - where you are and how you travel.
 
 ```ruby
-machine = StateJacket::StateMachine.new(system, state: :draft)
-machine.on :submit, draft: :review
-machine.on :publish, review: :published
-machine.on :archive, [:draft, :published] => :archived
+# Create a train on the network
+machine = StateJacket::StateMachine.new(system, state: :station_a)
+machine.on :express_route, :station_a => :station_c # express train event
+machine.on :local_route, :station_a => :station_b   # local train event
+machine.on :continue, :station_b => :station_c      # continuation event
 machine.lock
 ```
 
-### Benefits of This Separation
+### Why This Separation Matters
 
-1. **Independent testing** - Test business rules separately from event logic
-2. **Reusable rules** - Same transition system, multiple machines
-3. **Clear responsibilities** - Rules vs. behavior are distinct concerns
+1. **Independent Testing** - Test railway routes separately from train operations
+2. **Reusable Infrastructure** - Same railway network, multiple trains
+3. **Clear Responsibilities** - Infrastructure vs. operations are distinct
 
-### Elegant Event Syntax
+### Flexible Event Syntax
 
 StateJacket supports multiple syntaxes for defining transitions:
 
 ```ruby
 # Single source transition
-machine.on :approve, pending: :approved
+machine.on :approve, :pending => :approved
 
 # Multiple source transitions (hash syntax)
-machine.on :archive, {draft: :archived, published: :archived}
+machine.on :archive, {:draft => :archived, :published => :archived}
 
-# Multiple source transitions (array syntax - more elegant)
+# Multiple source transitions (array syntax - cleaner)
 machine.on :archive, [:draft, :published] => :archived
 ```
 
@@ -170,22 +207,25 @@ machine.on :archive, [:draft, :published] => :archived
 <summary><strong>Start Simple</strong> - Basic order workflow</summary>
 
 ```ruby
-# Define the business rules
+# Define the state transitions (domain rules)
 system = StateJacket::StateTransitionSystem.new
-system.add(cart: [:submitted, :abandoned])
-system.add(submitted: [:paid, :cancelled])
-system.add(paid: [:shipped])
-system.add(shipped: [:delivered])
-system.add(:delivered, :cancelled, :abandoned)  # terminal states
+system.add(:cart => [:submitted, :abandoned])
+system.add(:submitted => [:paid, :cancelled])
+system.add(:paid => :shipped)
+system.add(:shipped => :delivered)
+system.add(:delivered) # terminal state
+system.add(:cancelled) # terminal state
+system.add(:abandoned) # terminal state
 system.lock
 
-# Create the state machine
+# Create the state machine (current state + event behavior)
 machine = StateJacket::StateMachine.new(system, state: :cart)
-machine.on :checkout, cart: :submitted
-machine.on :payment, submitted: :paid
-machine.on :ship, paid: :shipped
-machine.on :deliver, shipped: :delivered
-machine.on :cancel, [:cart, :submitted] => :cancelled
+machine.on :submit, :cart => :submitted
+machine.on :pay, :submitted => :paid
+machine.on :ship, :paid => :shipped
+machine.on :deliver, :shipped => :delivered
+machine.on :abandon, :cart => :abandoned
+machine.on :cancel, :submitted => :cancelled
 machine.lock
 ```
 
@@ -219,8 +259,8 @@ class OrderProcessor
     return failure("Invalid payment method") unless valid_payment?(payment_method)
 
     result = @machine.trigger(:payment) do |from, to|
-      charge_payment(payment_method)
-      reserve_inventory
+      charge_payment(payment_method) # business logic in block
+      reserve_inventory              # explicit side effects
     end
 
     case result
@@ -239,19 +279,24 @@ class OrderProcessor
 
   def build_machine
     system = StateJacket::StateTransitionSystem.new
-    system.add(cart: [:submitted, :abandoned])
-    system.add(submitted: [:paid, :cancelled])
-    system.add(paid: [:shipped, :refunded])
-    system.add(shipped: [:delivered, :returned])
-    system.add(:delivered, :cancelled, :abandoned, :refunded, :returned)
+    system.add(:cart => [:submitted, :abandoned])
+    system.add(:submitted => [:paid, :cancelled])
+    system.add(:paid => [:shipped, :refunded])
+    system.add(:shipped => [:delivered, :returned])
+    system.add(:delivered)
+    system.add(:cancelled)
+    system.add(:abandoned)
+    system.add(:refunded)
+    system.add(:returned)
     system.lock
 
     machine = StateJacket::StateMachine.new(system, state: @order.status)
-    machine.on :checkout, cart: :submitted
-    machine.on :payment, submitted: :paid
-    machine.on :ship, paid: :shipped
-    machine.on :deliver, shipped: :delivered
-    machine.on :cancel, [:cart, :submitted] => :cancelled
+    machine.on :checkout, :cart => :submitted
+    machine.on :payment, :submitted => :paid
+    machine.on :ship, :paid => :shipped
+    machine.on :deliver, :shipped => :delivered
+    machine.on :abandon, :cart => :abandoned
+    machine.on :cancel, :submitted => :cancelled
     machine.on :refund, [:paid, :shipped, :delivered] => :refunded
     machine.lock
     machine
@@ -278,7 +323,6 @@ class OrderProcessor
   end
 
   def failure(message)
-    @machine.trigger(:fail) if @machine.can_trigger?(:fail)
     { success: false, error: message }
   end
 end
@@ -338,19 +382,19 @@ class UserAccountManager
 
   def build_machine
     system = StateJacket::StateTransitionSystem.new
-    system.add(pending: [:active, :rejected])
-    system.add(active: [:suspended, :deactivated])
-    system.add(suspended: [:active, :deactivated])
-    system.add(deactivated: [:active])
+    system.add(:pending => [:active, :rejected])
+    system.add(:active => [:suspended, :deactivated])
+    system.add(:suspended => [:active, :deactivated])
+    system.add(:deactivated => :active)
     system.add(:rejected)
     system.lock
 
     machine = StateJacket::StateMachine.new(system, state: @user.status)
-    machine.on :activate, pending: :active
-    machine.on :reject, pending: :rejected
-    machine.on :suspend, active: :suspended
-    machine.on :reactivate, [:suspended, :deactivated] => :active
+    machine.on :activate, :pending => :active
+    machine.on :reject, :pending => :rejected
+    machine.on :suspend, :active => :suspended
     machine.on :deactivate, [:active, :suspended] => :deactivated
+    machine.on :reactivate, [:suspended, :deactivated] => :active
     machine.lock
     machine
   end
@@ -494,8 +538,6 @@ class Order
 end
 ```
 
-**StateJacket:**
-
 ```ruby
 class Order
   def initialize
@@ -540,13 +582,13 @@ class Order
 
   def build_state_machine
     system = StateJacket::StateTransitionSystem.new
-    system.add(pending: [:paid, :cancelled])
+    system.add(:pending => [:paid, :cancelled])
     system.add(:paid, :cancelled)
     system.lock
 
     machine = StateJacket::StateMachine.new(system, state: :pending)
-    machine.on :pay, pending: :paid
-    machine.on :cancel, pending: :cancelled
+    machine.on :pay, :pending => :paid
+    machine.on :cancel, :pending => :cancelled
     machine.lock
     machine
   end
@@ -569,102 +611,6 @@ class Order
 
   def failure(message)
     { success: false, error: message }
-  end
-end
-```
-
-</details>
-
-### From StateMachines gem
-
-<details>
-<summary><strong>StateMachines Migration</strong> - Converting from state_machines</summary>
-
-**StateMachines:**
-
-```ruby
-class Vehicle
-  state_machine :state, initial: :parked do
-    event :ignite do
-      transition parked: :idling
-    end
-
-    event :shift_up do
-      transition idling: :first_gear, first_gear: :second_gear
-    end
-
-    before_transition any => :idling do |vehicle|
-      vehicle.start_engine
-    end
-  end
-end
-```
-
-**StateJacket:**
-
-```ruby
-class Vehicle
-  def initialize
-    @machine = build_state_machine
-  end
-
-  def ignite!
-    result = @machine.trigger(:ignite) do |from, to|
-      start_engine
-      self.state = to
-    end
-
-    case result
-    in { success?: true }
-      { success: true, message: "Engine started" }
-    in { failed?: true }
-      { success: false, error: "Cannot start engine" }
-    end
-  end
-
-  def shift_up!
-    result = @machine.trigger(:shift_up) do |from, to|
-      self.state = to
-      adjust_gear(to)
-    end
-
-    case result
-    in { success?: true, to: gear }
-      { success: true, message: "Shifted to #{gear}" }
-    in { failed?: true }
-      { success: false, error: "Cannot shift up" }
-    end
-  end
-
-  def state
-    @machine.state
-  end
-
-  private
-
-  def build_state_machine
-    system = StateJacket::StateTransitionSystem.new
-    system.add(parked: [:idling])
-    system.add(idling: [:first_gear, :parked])
-    system.add(first_gear: [:second_gear, :idling])
-    system.add(second_gear: [:first_gear])
-    system.lock
-
-    machine = StateJacket::StateMachine.new(system, state: :parked)
-    machine.on :ignite, parked: :idling
-    machine.on :shift_up, {idling: :first_gear, first_gear: :second_gear}
-    machine.on :shift_down, {second_gear: :first_gear, first_gear: :idling}
-    machine.on :park, [:idling, :first_gear] => :parked
-    machine.lock
-    machine
-  end
-
-  def start_engine
-    # Engine starting logic
-  end
-
-  def adjust_gear(gear)
-    # Gear adjustment logic
   end
 end
 ```
@@ -694,37 +640,12 @@ machine.lock
 threads = 10.times.map do
   Thread.new do
     1000.times do
-      machine.can_trigger?(:approve)  # Safe concurrent reads
-      machine.state                   # Safe concurrent reads
+      machine.can_trigger?(:approve) # Safe concurrent reads
+      machine.state                  # Safe concurrent reads
     end
   end
 end
 threads.each(&:join)
-```
-
-### Complex State Hierarchies
-
-Handle complex workflows with multiple paths:
-
-```ruby
-system = StateJacket::StateTransitionSystem.new
-system.add(idle: [:connecting, :error])
-system.add(connecting: [:connected, :failed, :timeout, :error])
-system.add(connected: [:idle, :transferring])
-system.add(transferring: [:connected, :completed, :error])
-system.add(:completed, :failed, :timeout, :error)
-system.lock
-
-machine = StateJacket::StateMachine.new(system, state: :idle)
-machine.on :connect, idle: :connecting
-machine.on :success, connecting: :connected
-machine.on :fail, connecting: :failed
-machine.on :timeout_event, connecting: :timeout
-machine.on :transfer, connected: :transferring
-machine.on :complete, transferring: :completed
-machine.on :disconnect, {connected: :idle, transferring: :connected}
-machine.on :error_out, {idle: :error, connecting: :error, transferring: :error}
-machine.lock
 ```
 
 ### State Machine Introspection
@@ -733,28 +654,21 @@ Rich introspection capabilities for debugging and UI generation:
 
 ```ruby
 # Current state information
-machine.state                    # => "pending"
-machine.state_symbol             # => :pending
-machine.terminal?                # => false
+machine.state        # => "pending"
+machine.state_symbol # => :pending
+machine.terminal?    # => false
 
 # Available actions
-machine.triggerable_events       # => ["approve", "reject"]
-machine.reachable_states         # => ["approved", "rejected"]
-machine.can_trigger?(:approve)   # => true
+machine.triggerable_events     # => ["approve", "reject"]
+machine.reachable_states       # => ["approved", "rejected"]
+machine.can_trigger?(:approve) # => true
 
 # All events and states
-machine.events                   # => ["approve", "reject", "cancel"]
-machine.states                   # => ["pending", "approved", "rejected"]
-
-# Transition system information
-system.transitioners             # => ["pending"]
-system.terminators               # => ["approved", "rejected"]
-system.can_transition?(pending: [:approved, :rejected])  # => true
+machine.events # => ["approve", "reject", "cancel"]
+machine.states # => ["pending", "approved", "rejected"]
 ```
 
 ## Performance & Production
-
-### Performance Characteristics
 
 StateJacket delivers exceptional performance through intelligent design:
 
@@ -763,106 +677,42 @@ StateJacket delivers exceptional performance through intelligent design:
 - **Memory efficient** - Frozen data structures with pre-computed caches
 - **Thread-safe** - No synchronization overhead after locking
 
-### Real-World Performance Impact
+StateJacket's minimal overhead means you can focus entirely on your business logic rather than worrying about state machine performance. Whether you're processing thousands of orders per minute or managing complex workflow orchestrations, StateJacket scales with your application needs.
 
-```ruby
-# StateJacket's speed matters in high-frequency scenarios
-def handle_websocket_message(message)
-  case connection_machine.trigger(:receive_message)  # ← Microseconds
-  in { success?: true, to: "authenticated" }
-    process_authenticated_message(message)           # ← Your bottleneck
-  in { success?: true, to: "rate_limited" }
-    drop_message_silently
-  end
-end
+### Real-World Performance
 
-# Batch processing benefits from consistent performance
-invoices.each do |invoice|
-  case invoice_machine.trigger(:process)  # ← Fast, consistent
-  in { success?: true }
-    update_database(invoice)              # ← Your bottleneck
-  end
-end
+Benchmark results demonstrate StateJacket's minimal overhead:
+
+```
+$ bin/benchmark
+StateJacket Performance Benchmark
+==================================================
+
+Performing 1,000 total transitions:
+  Completed in: 0.0006 seconds
+  Rate: 1,763,669 transitions/second
+
+Performing 10,000 total transitions:
+  Completed in: 0.0064 seconds
+  Rate: 1,559,090 transitions/second
+
+Performing 100,000 total transitions:
+  Completed in: 0.0588 seconds
+  Rate: 1,701,085 transitions/second
+
+Performing 1,000,000 total transitions:
+  Completed in: 0.5817 seconds
+  Rate: 1,719,223 transitions/second
+
+==================================================
+Benchmark completed successfully!
 ```
 
-**Important:** Real applications are bottlenecked by database calls, API requests, and business logic. StateJacket ensures the state machine itself never becomes a performance concern.
-
-### Production Considerations
-
-<details>
-<summary><strong>Monitoring & Observability</strong></summary>
-
-```ruby
-class InstrumentedStateMachine
-  def initialize(machine, logger: Rails.logger)
-    @machine = machine
-    @logger = logger
-  end
-
-  def trigger(event)
-    start_time = Time.current
-
-    result = @machine.trigger(event) do |from, to|
-      @logger.info "State transition: #{from} -> #{to} via #{event}"
-      yield from, to if block_given?
-    end
-
-    duration = Time.current - start_time
-    @logger.info "Transition completed in #{duration}ms"
-
-    case result
-    in { success?: true, from:, to: }
-      Metrics.increment('state_machine.transition.success',
-                       tags: { from: from, to: to, event: event })
-    in { failed?: true }
-      Metrics.increment('state_machine.transition.failure',
-                       tags: { state: @machine.state, event: event })
-    end
-
-    result
-  end
-
-  def method_missing(method, *args, &block)
-    @machine.send(method, *args, &block)
-  end
-end
-```
-
-</details>
-
-<details>
-<summary><strong>Error Handling Best Practices</strong></summary>
-
-```ruby
-class RobustOrderProcessor
-  def process_payment!
-    result = @machine.trigger(:pay) do |from, to|
-      PaymentService.charge(payment_method, amount)
-    rescue PaymentService::InsufficientFunds => e
-      raise TransitionError.new("Insufficient funds: #{e.message}")
-    rescue PaymentService::NetworkError => e
-      raise TransitionError.new("Payment service unavailable: #{e.message}")
-    end
-
-    case result
-    in { success?: true }
-      success("Payment processed")
-    in { failed?: true }
-      # State wasn't changed due to exception
-      failure("Payment failed - please try again")
-    end
-  rescue TransitionError => e
-    # Handle transition-specific errors
-    failure(e.message)
-  rescue => e
-    # Handle unexpected errors
-    logger.error "Unexpected error in payment processing: #{e.message}"
-    failure("An unexpected error occurred")
-  end
-end
-```
-
-</details>
+> **Run your own benchmarks**: `bin/benchmark` is included with StateJacket
+>
+> The consistent ~1.7M transitions/second rate across different workload sizes confirms true O(1) performance characteristics - StateJacket scales linearly with your business logic, not your state machine complexity.
+>
+> **Production Ready**: These performance characteristics make StateJacket suitable for high-throughput applications including payment processing, order fulfillment, and real-time workflow management.
 
 ## Testing
 
@@ -871,27 +721,24 @@ end
 Test business rules independently:
 
 ```ruby
-RSpec.describe "Order state transitions" do
-  let(:system) do
-    StateJacket::StateTransitionSystem.new.tap do |s|
-      s.add(pending: [:processing, :cancelled])
-      s.add(processing: [:completed, :failed])
-      s.add(:completed, :cancelled, :failed)
-      s.lock
-    end
+class OrderTransitionsTest < Minitest::Test
+  def setup
+    @system = StateJacket::StateTransitionSystem.new
+    @system.add(:pending => [:processing, :cancelled])
+    @system.add(:processing => [:completed, :failed])
+    @system.add(:completed)
+    @system.add(:cancelled)
+    @system.add(:failed)
+    @system.lock
   end
 
-  it "defines all expected states" do
-    expect(system.states).to contain_exactly("pending", "processing", "completed", "cancelled", "failed")
+  def test_validates_legal_transitions
+    assert @system.can_transition?(:pending => :processing)
+    assert @system.can_transition?(:processing => :completed)
   end
 
-  it "validates legal transitions" do
-    expect(system.can_transition?(pending: :processing)).to be true
-    expect(system.can_transition?(processing: :completed)).to be true
-  end
-
-  it "rejects illegal transitions" do
-    expect(system.can_transition?(completed: :pending)).to be false
+  def test_rejects_illegal_transitions
+    refute @system.can_transition?(:completed => :pending)
   end
 end
 ```
@@ -901,93 +748,39 @@ end
 Test event logic separately:
 
 ```ruby
-RSpec.describe "Order state machine" do
-  let(:system) { build_order_transition_system }
-  let(:machine) do
-    StateJacket::StateMachine.new(system, state: :pending).tap do |m|
-      m.on :process, pending: :processing
-      m.on :complete, processing: :completed
-      m.on :cancel, pending: :cancelled
-      m.lock
-    end
+class OrderStateMachineTest < Minitest::Test
+  def setup
+    @machine = build_order_machine
   end
 
-  it "transitions on valid events" do
-    result = machine.trigger(:process)
-    expect(result).to be_success
-    expect(machine.state).to eq("processing")
+  def test_transitions_on_valid_events
+    result = @machine.trigger(:process)
+    assert result.success?
+    assert_equal "processing", @machine.state
   end
 
-  it "returns failure for invalid transitions" do
-    result = machine.trigger(:complete)  # Can't complete from pending
-    expect(result).to be_failed
-    expect(machine.state).to eq("pending")
-  end
-end
-```
-
-### Testing Business Logic
-
-Test validation and callbacks independently:
-
-```ruby
-RSpec.describe OrderProcessor do
-  let(:order) { build(:order, :with_items) }
-  let(:processor) { OrderProcessor.new(order) }
-
-  describe "#process_payment!" do
-    context "with valid payment method" do
-      let(:payment_method) { build(:payment_method, :valid) }
-
-      it "processes payment successfully" do
-        result = processor.process_payment!(payment_method)
-        expect(result[:success]).to be true
-        expect(processor.state).to eq("paid")
-      end
-    end
-
-    context "with invalid payment method" do
-      let(:payment_method) { build(:payment_method, :invalid) }
-
-      it "fails with validation error" do
-        result = processor.process_payment!(payment_method)
-        expect(result[:success]).to be false
-        expect(result[:error]).to include("Invalid payment method")
-        expect(processor.state).to eq("pending")
-      end
-    end
-  end
-end
-```
-
-### Pattern Matching in Tests
-
-Use pattern matching for cleaner test assertions:
-
-```ruby
-RSpec.describe "Order workflow" do
-  it "processes orders successfully" do
-    result = processor.checkout!
-
-    case result
-    in { success: true, message: String => msg }
-      expect(msg).to include("submitted")
-    else
-      fail "Expected successful checkout"
-    end
+  def test_returns_failure_for_invalid_transitions
+    result = @machine.trigger(:complete) # Can't complete from pending
+    assert result.failed?
+    assert_equal "pending", @machine.state
   end
 
-  it "handles validation failures gracefully" do
-    allow(processor).to receive(:valid_address?).and_return(false)
+  private
 
-    result = processor.checkout!
+  def build_order_machine
+    system = StateJacket::StateTransitionSystem.new
+    system.add(:pending => [:processing, :cancelled])
+    system.add(:processing => [:completed, :failed])
+    system.add(:completed)
+    system.add(:cancelled)
+    system.add(:failed)
+    system.lock
 
-    case result
-    in { success: false, error: String => error }
-      expect(error).to include("address")
-    else
-      fail "Expected validation error"
-    end
+    machine = StateJacket::StateMachine.new(system, state: :pending)
+    machine.on :process, :pending => :processing
+    machine.on :complete, :processing => :completed
+    machine.lock
+    machine
   end
 end
 ```
@@ -1012,6 +805,19 @@ Or install it yourself as:
 gem install state_jacket
 ```
 
+### Test Performance
+
+After installation, you can immediately test StateJacket's performance:
+
+```bash
+# Clone the repository to access benchmark script
+git clone https://github.com/hopsoft/state_jacket.git
+cd state_jacket
+bin/benchmark
+```
+
+This will run performance tests showing StateJacket's 1.7M+ transitions/second capability.
+
 ## Requirements
 
 - Ruby 3.0+ (for pattern matching features)
@@ -1028,19 +834,6 @@ git clone https://github.com/user/state_jacket.git
 cd state_jacket
 bundle install
 bundle exec rake test
-```
-
-### Running Tests
-
-```bash
-# Run all tests
-bundle exec rake test
-
-# Run specific test file
-bundle exec ruby test/state_machine_test.rb
-
-# Run performance benchmarks
-bundle exec ruby bin/benchmark
 ```
 
 ## License

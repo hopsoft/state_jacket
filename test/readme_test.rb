@@ -46,8 +46,8 @@ class ReadmeTest < Minitest::Test
     assert_equal("closed", machine.state)
 
     # Check event availability
-    assert_equal(true, machine.is_event?(:open))
-    assert_equal(false, machine.is_event?(:foo))
+    assert_equal(true, machine.event?(:open))
+    assert_equal(false, machine.event?(:foo))
     assert_equal(true, machine.can_trigger?(:open))
     assert_equal(false, machine.can_trigger?(:close))
 
@@ -102,10 +102,10 @@ class ReadmeTest < Minitest::Test
     assert_equal(["cancelled", "completed"], system.terminators.sort)
 
     # State validation
-    assert_equal(true, system.is_state?(:pending))
-    assert_equal(false, system.is_state?(:invalid))
-    assert_equal(true, system.is_transitioner?(:pending))
-    assert_equal(true, system.is_terminator?(:completed))
+    assert_equal(true, system.state?(:pending))
+    assert_equal(false, system.state?(:invalid))
+    assert_equal(true, system.transitioner?(:pending))
+    assert_equal(true, system.terminator?(:completed))
 
     # Transition validation
     assert_equal(true, system.can_transition?(pending: :processing))
@@ -129,7 +129,7 @@ class ReadmeTest < Minitest::Test
 
     # Event introspection
     assert_equal(["start", "complete", "fail", "cancel", "retry"], machine.events)
-    assert_equal(true, machine.is_event?(:start))
+    assert_equal(true, machine.event?(:start))
     assert_equal(true, machine.can_trigger?(:start))
     assert_equal(false, machine.can_trigger?(:complete))
 
