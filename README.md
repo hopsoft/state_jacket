@@ -64,7 +64,9 @@ end
 puts machine.state  # => "approved"
 ```
 
-> [!NOTE] > **Hash Rocket Syntax for Transitions**
+> [!NOTE]
+>
+> **Hash Rocket Syntax for Transitions**
 >
 > StateJacket supports both hash syntax styles, but we recommend hash rockets (`=>`) for state transitions because they visually represent directional flow: `pending => approved` clearly shows the transition direction, making state machine definitions more readable and intuitive.
 
