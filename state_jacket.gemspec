@@ -12,11 +12,14 @@ Gem::Specification.new do |gem|
   gem.files = Dir["lib/**/*.rb", "sig/**/*.rbs", "README.md", "LICENSE.txt"]
   gem.require_paths = ["lib"]
 
+  gem.add_development_dependency "amazing_print"
   gem.add_development_dependency "benchmark"
   gem.add_development_dependency "coveralls_reborn"
+  gem.add_development_dependency "irb"
   gem.add_development_dependency "minitest"
-  gem.add_development_dependency "pry"
+  gem.add_development_dependency "pry-byebug"
   gem.add_development_dependency "rake"
   gem.add_development_dependency "rbs-inline"
+  gem.add_development_dependency "reline"
   gem.add_development_dependency "standard"
 end

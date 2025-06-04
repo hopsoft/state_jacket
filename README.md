@@ -33,38 +33,52 @@ StateJacket eliminates state management headaches for Ruby developers by providi
 Get started with StateJacket in under 30 seconds:
 
 ```bash
+# install the gem
 gem install state_jacket
 ```
 
 ```ruby
 require 'state_jacket'
 
-# 1. Define valid state transitions (the domain rules)
+# 1. Define valid state transitions (domain rules)
 system = StateJacket::StateTransitionSystem.new
-system.add pending: [:approved, :rejected]  # creates approved & rejected as terminals automatically
-system.lock                                 # make immutable for thread safety
+system.add :pending => [:approved, :rejected] # creates approved & rejected as terminals automatically
+system.lock                                   # locks the system (prevents changes)
 
-# 2. Create state machine with current state and event handlers
+# inspect the system
+system.to_h          # => {"approved" => nil, "rejected" => nil, "pending" => ["approved", "rejected"]}
+system.states        # => ["approved", "rejected", "pending"]
+system.terminators   # => ["approved", "rejected"]
+system.transitioners # => ["pending"]
+
+# 2. Create state machine with the initial state
 machine = StateJacket::StateMachine.new(system, state: :pending)
-machine.on :approve, pending: :approved  # :approve event transitions pending -> approved
-machine.on :reject, pending: :rejected   # :reject event transitions pending -> rejected
-machine.lock
+machine.on :approve, :pending => :approved # :approve event transitions pending -> approved
+machine.on :reject, :pending => :rejected  # :reject event transitions pending -> rejected
+machine.lock                               # locks the machine (prevents changes)
 
-# 3. Trigger transitions and handle results with pattern matching
+# inspect the machine
+machine.to_h               # => {"approve" => [{"pending" => "approved"}], "reject" => [{"pending" => "rejected"}]}
+machine.events             # => ["approve", "reject"]
+machine.triggerable_events # => ["approve", "reject"]
+machine.states             # => ["approved", "rejected", "pending"]
+machine.reachable_states   # => ["approved", "rejected"]
+
+# 3. Trigger a transition
 result = machine.trigger(:approve)
-case result
-in success?: true, to: "approved"
-  puts "Approved! 🎉"
-in failed?: true
-  puts "Approval failed"
-end
 
-puts machine.state  # => "approved"
+# inspect the machine
+machine.state # => "approved"
+
+# 4. Handle result (pattern matching)
+case result
+in success?: true, to: "approved" then puts "Approved!"
+in failed?: true then puts "Approval failed!"
+end
 ```
 
-> [!NOTE]
-> **Automatic State Creation**
-> 
+> [!NOTE] > **Automatic State Creation**
+>
 > StateJacket automatically creates terminal states when they're referenced as destinations. For example, `system.add pending: [:approved, :rejected]` creates `approved` and `rejected` as terminal states automatically - no need to add them explicitly unless they have outgoing transitions.
 
 > [!NOTE]
@@ -73,19 +87,45 @@ puts machine.state  # => "approved"
 >
 > StateJacket supports both hash syntax styles, but we recommend hash rockets (`=>`) for state transitions because they visually represent directional flow: `pending => approved` clearly shows the transition direction, making state machine definitions more readable and intuitive.
 
-### Key Methods
+### Understanding Your State Machine
+
+StateJacket provides rich introspection to help you understand the structure and current state of your systems:
 
 ```ruby
-# State machine introspection
-machine.state                  # => "approved"
-machine.events                 # => ["approve", "reject"]
-machine.can_trigger? :approve   # => false (already approved)
-machine.terminal?              # => true
+# After running the basic example above, inspect what was created:
 
-# Transition system introspection
-system.states # => ["pending", "approved", "rejected"]
-system.can_transition? pending: :approved  # => true
+# Current state information
+puts machine.state                   # => "approved"
+puts machine.state_symbol            # => :approved
+puts machine.terminal?               # => true
+
+# What events are available?
+puts machine.events                  # => ["approve", "reject"]
+puts machine.triggerable_events     # => [] (none from terminal state)
+puts machine.can_trigger? :approve   # => false (already approved)
+
+# Where can we go from here?
+puts machine.reachable_states        # => [] (terminal state)
+
+# What did the system create automatically?
+puts system.states                   # => ["approved", "rejected", "pending"]
+puts system.transitioners           # => ["pending"] (states with outgoing transitions)
+puts system.terminators             # => ["approved", "rejected"] (end states)
+
+# Verify the business rules
+puts system.can_transition? pending: :approved    # => true
+puts system.can_transition? approved: :pending    # => false
+puts system.locked?                               # => true
+
+# Examine the complete structure
+puts system.to_h
+# => {"approved"=>nil, "rejected"=>nil, "pending"=>["approved", "rejected"]}
+
+puts machine.to_h
+# => {"approve"=>[{"pending"=>"approved"}], "reject"=>[{"pending"=>"rejected"}]}
 ```
+
+This introspection is invaluable for debugging complex state machines and understanding what StateJacket created from your concise definitions.
 
 ## Why StateJacket?
 
@@ -228,12 +268,37 @@ machine.on :deliver, shipped: :delivered
 machine.on :abandon, cart: :abandoned
 machine.on :cancel, submitted: :cancelled
 machine.lock
+
+# Inspect what StateJacket created from our concise definitions:
+puts "States created: #{system.states}"
+# => ["submitted", "abandoned", "cart", "paid", "cancelled", "shipped", "delivered"]
+
+puts "Active states: #{system.transitioners}"
+# => ["submitted", "cart", "paid", "shipped"]
+
+puts "Terminal states: #{system.terminators}"
+# => ["abandoned", "cancelled", "delivered"]
+
+puts "From cart, you can: #{machine.triggerable_events}"
+# => ["submit", "abandon"]
+
+puts "System structure:"
+puts system.to_h
+# => {
+#   "submitted" => ["paid", "cancelled"],
+#   "abandoned" => nil,
+#   "cart" => ["submitted", "abandoned"],
+#   "paid" => ["shipped"],
+#   "cancelled" => nil,
+#   "shipped" => ["delivered"],
+#   "delivered" => nil
+# }
 ```
 
 </details>
 
 <details>
-<summary><strong>Add Business Logic</strong> - Handle transitions with validation</summary>
+<summary><strong>Add Business Logic</strong> - Handle transitions with validation and introspection</summary>
 
 ```ruby
 class OrderProcessor
@@ -298,6 +363,25 @@ class OrderProcessor
     machine
   end
 
+  # Debug helper to understand the system structure
+  def inspect_system
+    puts "=== Order System Analysis ==="
+    puts "Current state: #{@machine.state}"
+    puts "Available actions: #{@machine.triggerable_events}"
+    puts "Next possible states: #{@machine.reachable_states}"
+    puts "Is terminal state?: #{@machine.terminal?}"
+
+    puts "\n=== System Structure ==="
+    puts "All states: #{@machine.states}"
+    puts "Terminal states: #{@machine.transition_system.terminators}"
+    puts "Active states: #{@machine.transition_system.transitioners}"
+
+    puts "\n=== Complete Event Map ==="
+    @machine.to_h.each do |event, transitions|
+      puts "#{event}: #{transitions}"
+    end
+  end
+
   def valid_address?
     @order.shipping_address&.complete?
   end
@@ -322,6 +406,83 @@ class OrderProcessor
     { success: false, error: message }
   end
 end
+```
+
+</details>
+
+<details>
+<summary><strong>Debugging Complex Systems</strong> - Use introspection to understand your state machine</summary>
+
+```ruby
+# Complex order processing with refunds, returns, and error states
+system = StateJacket::StateTransitionSystem.new
+system.add cart: [:submitted, :abandoned]
+system.add submitted: [:paid, :cancelled]
+system.add paid: [:shipped, :refunded]
+system.add shipped: [:delivered, :returned, :lost]
+system.add delivered: [:completed, :returned]
+system.add returned: [:refunded, :restocked]
+system.add refunded: :completed
+system.add restocked: [:resold, :disposed]
+system.add lost: [:refunded, :replaced]
+system.lock
+
+machine = StateJacket::StateMachine.new(system, state: :cart)
+machine.on :submit, cart: :submitted
+machine.on :pay, submitted: :paid
+machine.on :ship, paid: :shipped
+machine.on :deliver, shipped: :delivered
+machine.on :complete, delivered: :completed
+machine.on :return, [:shipped, :delivered] => :returned
+machine.on :refund, [:paid, :returned, :lost] => :refunded
+machine.on :restock, returned: :restocked
+machine.on :lose, shipped: :lost
+machine.on :replace, lost: :shipped
+machine.on :resell, restocked: :paid  # back into the system
+machine.lock
+
+# Let's inspect this complex system:
+puts "=== Ultra Complex Order System Analysis ==="
+puts "Total states: #{system.states.count}"      # => 15
+puts "States: #{system.states}"
+# => ["submitted", "abandoned", "cart", "paid", "cancelled", "shipped", "refunded",
+#     "delivered", "returned", "lost", "completed", "restocked", "resold", "disposed", "replaced"]
+
+puts "\nStates that can transition elsewhere:"
+system.transitioners.each do |state|
+  destinations = system.to_h[state]
+  puts "  #{state} → #{destinations}"
+end
+# =>  submitted → ["paid", "cancelled"]
+#     cart → ["submitted", "abandoned"]
+#     paid → ["shipped", "refunded"]
+#     shipped → ["delivered", "returned", "lost"]
+#     refunded → ["completed"]
+#     delivered → ["completed", "returned"]
+#     returned → ["refunded", "restocked"]
+#     lost → ["refunded", "replaced"]
+#     restocked → ["resold", "disposed"]
+
+puts "\nEnd states (no outgoing transitions):"
+puts "  #{system.terminators}"
+# => ["abandoned", "cancelled", "completed", "resold", "disposed", "replaced"]
+
+puts "\nFrom 'shipped', possible paths:"
+machine = StateJacket::StateMachine.new(system, state: :shipped)
+machine.on :deliver, shipped: :delivered
+machine.on :return, shipped: :returned
+machine.on :lose, shipped: :lost
+machine.lock
+
+puts "  Available actions: #{machine.triggerable_events}"   # => ["deliver", "return", "lose"]
+puts "  Possible destinations: #{machine.reachable_states}" # => ["delivered", "returned", "lost"]
+
+# Verify complex business rules:
+puts "\nBusiness rule validation:"
+puts "  Can cart go directly to shipped?: #{system.can_transition? cart: :shipped}"        # => false
+puts "  Can returned items be restocked?: #{system.can_transition? returned: :restocked}" # => true
+puts "  Can restocked items be resold?: #{system.can_transition? restocked: :resold}"     # => true
+puts "  Are completed orders terminal?: #{system.terminators.include?('completed')}"       # => true
 ```
 
 </details>
@@ -647,20 +808,67 @@ threads.each(&:join)
 Rich introspection capabilities for debugging and UI generation:
 
 ```ruby
-# Current state information
-machine.state        # => "pending"
-machine.state_symbol # => :pending
-machine.terminal?    # => false
+# Let's build a more complex system to demonstrate introspection
+system = StateJacket::StateTransitionSystem.new
+system.add draft: [:review, :archived]
+system.add review: [:published, :rejected, :archived]
+system.add published: [:archived, :featured]
+system.add rejected: :draft  # allows resubmission
+system.lock
 
-# Available actions
-machine.triggerable_events  # => ["approve", "reject"]
-machine.reachable_states    # => ["approved", "rejected"]
-machine.can_trigger? :approve # => true
+machine = StateJacket::StateMachine.new(system, state: :draft)
+machine.on :submit, draft: :review
+machine.on :approve, review: :published
+machine.on :reject, review: :rejected
+machine.on :archive, [:draft, :review, :published] => :archived
+machine.on :feature, published: :featured
+machine.on :revise, rejected: :draft
+machine.lock
 
-# All events and states
-machine.events # => ["approve", "reject", "cancel"]
-machine.states # => ["pending", "approved", "rejected"]
+# Comprehensive introspection from draft state:
+puts "=== Current State Analysis ==="
+puts "State: #{machine.state}"                    # => "draft"
+puts "Terminal?: #{machine.terminal?}"             # => false
+puts "Available actions: #{machine.triggerable_events}"  # => ["submit", "archive"]
+puts "Reachable states: #{machine.reachable_states}"     # => ["review", "archived"]
+
+# System-wide analysis:
+puts "\n=== System Structure ==="
+puts "All states: #{system.states}"               # => ["review", "archived", "draft", "published", "rejected", "featured"]
+puts "Active states: #{system.transitioners}"     # => ["review", "draft", "published", "rejected"]
+puts "End states: #{system.terminators}"          # => ["archived", "featured"]
+
+# Transition validation:
+puts "\n=== Business Rules Validation ==="
+puts "Can draft be published directly?: #{system.can_transition? draft: :published}"  # => false
+puts "Can published be featured?: #{system.can_transition? published: :featured}"     # => true
+puts "Can archived transition?: #{system.can_transition? archived: :draft}"           # => false
+
+# Complete system mapping:
+puts "\n=== Complete System Map ==="
+puts system.to_h
+# => {
+#   "review" => ["published", "rejected", "archived"],
+#   "archived" => nil,
+#   "draft" => ["review", "archived"],
+#   "published" => ["archived", "featured"],
+#   "rejected" => ["draft"],
+#   "featured" => nil
+# }
+
+puts "\n=== Event Mapping ==="
+puts machine.to_h
+# => {
+#   "submit" => [{"draft" => "review"}],
+#   "approve" => [{"review" => "published"}],
+#   "reject" => [{"review" => "rejected"}],
+#   "archive" => [{"draft" => "archived"}, {"review" => "archived"}, {"published" => "archived"}],
+#   "feature" => [{"published" => "featured"}],
+#   "revise" => [{"rejected" => "draft"}]
+# }
 ```
+
+This introspection becomes essential when building complex workflows - you can verify that your concise state definitions created exactly the state machine you intended.
 
 ## Performance & Production
 
@@ -712,7 +920,7 @@ Benchmark completed successfully!
 
 ### Testing State Transition Systems
 
-Test business rules independently:
+Test business rules independently with introspection for debugging:
 
 ```ruby
 class OrderTransitionsTest < Minitest::Test
@@ -721,39 +929,137 @@ class OrderTransitionsTest < Minitest::Test
     @system.add pending: [:processing, :cancelled]
     @system.add processing: [:completed, :failed]  # terminals auto-created
     @system.lock
+
+    # Use introspection to verify what we built
+    puts "System created: #{@system.states}"
+    # => ["pending", "processing", "completed", "cancelled", "failed"]
+    puts "Transitioners: #{@system.transitioners}"
+    # => ["pending", "processing"]
+    puts "Terminals: #{@system.terminators}"
+    # => ["completed", "cancelled", "failed"]
   end
 
   def test_validates_legal_transitions
     assert @system.can_transition? pending: :processing
     assert @system.can_transition? processing: :completed
+
+    # Debug failing tests with introspection
+    unless @system.can_transition? pending: :completed
+      puts "Direct pending→completed blocked. Valid from pending: #{@system.to_h['pending']}"
+    end
   end
 
   def test_rejects_illegal_transitions
     refute @system.can_transition? completed: :pending
+
+    # Verify why this should fail
+    assert @system.terminators.include?("completed"), "completed should be terminal"
+    assert_nil @system.to_h["completed"], "completed should have no outgoing transitions"
+  end
+
+  def test_system_structure_matches_expectations
+    # Use introspection to verify the complete system structure
+    expected_structure = {
+      "pending" => ["processing", "cancelled"],
+      "processing" => ["completed", "failed"],
+      "completed" => nil,
+      "cancelled" => nil,
+      "failed" => nil
+    }
+
+    assert_equal expected_structure, @system.to_h
+
+    # Verify counts
+    assert_equal 5, @system.states.count
+    assert_equal 2, @system.transitioners.count
+    assert_equal 3, @system.terminators.count
   end
 end
 ```
 
 ### Testing State Machines
 
-Test event logic separately:
+Test event logic separately with debugging introspection:
 
 ```ruby
 class OrderStateMachineTest < Minitest::Test
   def setup
     @machine = build_order_machine
+
+    # Debug the machine setup
+    puts "Machine events: #{@machine.events}"
+    # => ["process", "complete"]
+    puts "From pending: #{@machine.triggerable_events}"
+    # => ["process"]
+    puts "Event mapping: #{@machine.to_h}"
+    # => {"process"=>[{"pending"=>"processing"}], "complete"=>[{"processing"=>"completed"}]}
   end
 
   def test_transitions_on_valid_events
+    # Verify state before transition
+    assert_equal "pending", @machine.state
+    assert_includes @machine.triggerable_events, "process"
+    assert_includes @machine.reachable_states, "processing"
+
     result = @machine.trigger(:process)
     assert result.success?
     assert_equal "processing", @machine.state
+
+    # Verify state after transition
+    assert_includes @machine.triggerable_events, "complete"
+    assert_includes @machine.reachable_states, "completed"
+    refute_includes @machine.triggerable_events, "process"
   end
 
   def test_returns_failure_for_invalid_transitions
+    # Use introspection to understand why this should fail
+    refute @machine.can_trigger?(:complete), "complete should not be available from pending"
+    refute_includes @machine.triggerable_events, "complete"
+
     result = @machine.trigger(:complete)  # Can't complete from pending
     assert result.failed?
-    assert_equal "pending", @machine.state
+    assert_equal "pending", @machine.state  # State unchanged
+
+    # Verify machine state is consistent after failed transition
+    assert_equal ["process"], @machine.triggerable_events
+  end
+
+  def test_machine_introspection_at_each_state
+    # Test introspection throughout the workflow
+    states_analysis = {}
+
+    # From pending
+    states_analysis[:pending] = {
+      triggerable: @machine.triggerable_events.dup,
+      reachable: @machine.reachable_states.dup,
+      terminal: @machine.terminal?
+    }
+
+    @machine.trigger(:process)
+
+    # From processing
+    states_analysis[:processing] = {
+      triggerable: @machine.triggerable_events.dup,
+      reachable: @machine.reachable_states.dup,
+      terminal: @machine.terminal?
+    }
+
+    @machine.trigger(:complete)
+
+    # From completed
+    states_analysis[:completed] = {
+      triggerable: @machine.triggerable_events.dup,
+      reachable: @machine.reachable_states.dup,
+      terminal: @machine.terminal?
+    }
+
+    # Verify the analysis
+    assert_equal ["process"], states_analysis[:pending][:triggerable]
+    assert_equal ["complete"], states_analysis[:processing][:triggerable]
+    assert_equal [], states_analysis[:completed][:triggerable]
+    assert states_analysis[:completed][:terminal]
+
+    puts "State analysis: #{states_analysis}"
   end
 
   private
