@@ -53,10 +53,10 @@ class StateJacket::TransitionSystem::IntrospectionTest < Test
     end
 
     def test_state_predicate
-      assert @system.includes?("pending")
-      assert @system.includes?(:approved) # tests symbol conversion
-      assert @system.includes?("rejected")
-      refute @system.includes?("non_existent_state")
+      assert @system.include?("pending")
+      assert @system.include?(:approved) # tests symbol conversion
+      assert @system.include?("rejected")
+      refute @system.include?("non_existent_state")
     end
 
     def test_terminal_predicate
@@ -230,10 +230,10 @@ class StateJacket::TransitionSystem::IntrospectionTest < Test
     end
 
     def test_state_predicate
-      assert @system.includes?("station_a")
-      assert @system.includes?(:station_b)
-      assert @system.includes?("station_c")
-      refute @system.includes?("station_d")
+      assert @system.include?("station_a")
+      assert @system.include?(:station_b)
+      assert @system.include?("station_c")
+      refute @system.include?("station_d")
     end
 
     def test_terminal_predicate
@@ -325,6 +325,16 @@ class StateJacket::TransitionSystem::IntrospectionTest < Test
       assert @system.overlaps?(station_a: :station_b), "overlaps? allows partial overlap"
     end
 
+    def test_overlaps_with_terminal_state_transitions
+      # Test overlaps? with nil target (terminal state)
+      refute @system.overlaps?(station_a: nil), "station_a cannot become terminal (has outgoing transitions)"
+      refute @system.overlaps?(station_b: nil), "station_b cannot become terminal (has outgoing transitions)"
+      assert @system.overlaps?(station_c: nil), "station_c is already terminal, so overlaps with nil"
+
+      # Test with empty array target
+      refute @system.overlaps?(station_a: []), "overlaps? returns false for empty target array"
+    end
+
     def test_deconstruct_keys
       expected_subset = {
         transitioners: ["station_a", "station_b"],
@@ -393,9 +403,9 @@ class StateJacket::TransitionSystem::IntrospectionTest < Test
     end
 
     def test_state_predicate
-      assert @system.includes?(:cart)
-      assert @system.includes?(:delivered)
-      refute @system.includes?(:unknown_state)
+      assert @system.include?(:cart)
+      assert @system.include?(:delivered)
+      refute @system.include?(:unknown_state)
     end
 
     def test_terminal_predicate
@@ -500,6 +510,18 @@ class StateJacket::TransitionSystem::IntrospectionTest < Test
       assert @system.overlaps?(cart: :submitted), "overlaps? allows partial overlap"
     end
 
+    def test_overlaps_with_terminal_state_transitions
+      # Test overlaps? with nil target (terminal state)
+      refute @system.overlaps?(cart: nil), "cart cannot become terminal (has outgoing transitions)"
+      refute @system.overlaps?(submitted: nil), "submitted cannot become terminal (has outgoing transitions)"
+      assert @system.overlaps?(abandoned: nil), "abandoned is already terminal, so overlaps with nil"
+      assert @system.overlaps?(delivered: nil), "delivered is already terminal, so overlaps with nil"
+
+      # Test that match? works correctly with terminal states
+      assert @system.match?(abandoned: nil), "match? should work with terminal states"
+      assert @system.match?(delivered: nil), "match? should work with terminal states"
+    end
+
     def test_deconstruct_keys
       keys_to_get = [:states, :terminals, :locked]
       expected_subset = {
@@ -572,9 +594,9 @@ class StateJacket::TransitionSystem::IntrospectionTest < Test
     end
 
     def test_state_predicate
-      assert @system.includes?(:cart)
-      assert @system.includes?(:returned)
-      refute @system.includes?(:processing)
+      assert @system.include?(:cart)
+      assert @system.include?(:returned)
+      refute @system.include?(:processing)
     end
 
     def test_terminal_predicate
@@ -746,9 +768,9 @@ class StateJacket::TransitionSystem::IntrospectionTest < Test
     end
 
     def test_state_predicate
-      assert @system.includes?(:pending)
-      assert @system.includes?(:deactivated)
-      refute @system.includes?(:archived)
+      assert @system.include?(:pending)
+      assert @system.include?(:deactivated)
+      refute @system.include?(:archived)
     end
 
     def test_terminal_predicate

@@ -8,11 +8,11 @@ puts "StateJacket Performance Benchmark"
 puts "=" * 50
 
 # Simple two-state transition system for maximum performance
-transitions = StateJacket::StateTransitionSystem.new
+transitions = StateJacket::TransitionSystem.new
 transitions.add state_a: [:state_b]
 transitions.add state_b: [:state_a]
 
-machine = StateJacket::StateMachine.new(transitions, state: :state_a)
+machine = StateJacket::StateMachine.new(transitions, current_state: :state_a)
 machine.on :toggle, {state_a: :state_b, state_b: :state_a}
 machine.lock
 
@@ -25,7 +25,7 @@ machine.lock
   puts "\nPerforming #{formatted_count} total transitions:"
   
   # Reset to known state
-  machine.trigger(:toggle) until machine.state == "state_a"
+  machine.trigger(:toggle) until machine.current_state == "state_a"
   
   time = Benchmark.realtime do
     count.times { machine.trigger(:toggle) }

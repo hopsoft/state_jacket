@@ -74,9 +74,9 @@ class StateJacket::TransitionSystem::Test < Test
     @system.add state_a: [:state_b, :state_c]
 
     # Target states should be automatically added as terminals
-    assert @system.includes?("state_b")
+    assert @system.include?("state_b")
     assert @system.terminal?("state_b")
-    assert @system.includes?("state_c")
+    assert @system.include?("state_c")
     assert @system.terminal?("state_c")
 
     # Add a transition where one of the 'to' states already exists as a transitioner
@@ -171,7 +171,7 @@ class StateJacket::TransitionSystem::Test < Test
     def test_add_nil_target_to_new_state_makes_it_terminal
       @system.add pending: nil
 
-      assert @system.includes?("pending")
+      assert @system.include?("pending")
       assert @system.terminal?("pending")
       refute @system.transitioner?("pending")
 
