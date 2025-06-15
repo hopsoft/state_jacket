@@ -17,6 +17,7 @@ Gem::Specification.new do |gem|
   gem.add_development_dependency "coveralls_reborn"
   gem.add_development_dependency "irb"
   gem.add_development_dependency "minitest"
+  gem.add_development_dependency "minitest-reporters"
   gem.add_development_dependency "pry-byebug"
   gem.add_development_dependency "rake"
   gem.add_development_dependency "rbs-inline"

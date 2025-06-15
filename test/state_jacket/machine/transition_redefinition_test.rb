@@ -2,15 +2,15 @@
 
 require_relative "../../test_helper"
 
-class StateJacket::StateMachine::TransitionRedefinitionTest < Test
+class StateJacket::Machine::TransitionRedefinitionTest < Test
   class BasicRedefinitionTest < Test
     def setup
-      @system = StateJacket::TransitionSystem.new
-      @system.add pending: [:approved, :rejected]
-      @system.add approved: :completed
-      @system.add rejected: :cancelled
+      @matrix = StateJacket::Matrix.new
+      @matrix.add pending: [:approved, :rejected]
+      @matrix.add approved: :completed
+      @matrix.add rejected: :cancelled
 
-      @machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      @machine = StateJacket::Machine.new(@matrix, current_state: :pending)
     end
 
     def test_allows_redefining_same_event_with_different_target
@@ -54,13 +54,13 @@ class StateJacket::StateMachine::TransitionRedefinitionTest < Test
 
   class ComplexRedefinitionTest < Test
     def setup
-      @system = StateJacket::TransitionSystem.new
-      @system.add cart: [:submitted, :abandoned]
-      @system.add submitted: [:paid, :cancelled]
-      @system.add paid: [:shipped, :refunded]
-      @system.add shipped: [:delivered, :returned]
+      @matrix = StateJacket::Matrix.new
+      @matrix.add cart: [:submitted, :abandoned]
+      @matrix.add submitted: [:paid, :cancelled]
+      @matrix.add paid: [:shipped, :refunded]
+      @matrix.add shipped: [:delivered, :returned]
 
-      @machine = StateJacket::StateMachine.new(@system, current_state: :cart)
+      @machine = StateJacket::Machine.new(@matrix, current_state: :cart)
     end
 
     def test_redefining_multiple_transitions
@@ -100,10 +100,10 @@ class StateJacket::StateMachine::TransitionRedefinitionTest < Test
 
   class CacheConsistencyTest < Test
     def setup
-      @system = StateJacket::TransitionSystem.new
-      @system.add pending: [:approved, :rejected]
+      @matrix = StateJacket::Matrix.new
+      @matrix.add pending: [:approved, :rejected]
 
-      @machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      @machine = StateJacket::Machine.new(@matrix, current_state: :pending)
     end
 
     def test_cache_updates_on_redefinition
@@ -115,7 +115,7 @@ class StateJacket::StateMachine::TransitionRedefinitionTest < Test
       assert_equal ["approved"], @machine.reachable_states
 
       # Create a new machine for redefinition
-      new_machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      new_machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       new_machine.on :proceed, pending: :rejected
       new_machine.lock
 
@@ -126,17 +126,17 @@ class StateJacket::StateMachine::TransitionRedefinitionTest < Test
 
   class LockedBehaviorTest < Test
     def setup
-      @system = StateJacket::TransitionSystem.new
-      @system.add pending: [:approved, :rejected]
+      @matrix = StateJacket::Matrix.new
+      @matrix.add pending: [:approved, :rejected]
 
-      @machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      @machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       @machine.on :proceed, pending: :approved
     end
 
     def test_cannot_redefine_after_locking
       @machine.lock
 
-      assert_raises(RuntimeError, "events cannot be added after locking") do
+      assert_raises(StateJacket::Machine::Error, "events cannot be added after locking") do
         @machine.on :proceed, pending: :rejected
       end
     end
@@ -144,12 +144,12 @@ class StateJacket::StateMachine::TransitionRedefinitionTest < Test
 
   class ArraySourceTest < Test
     def setup
-      @system = StateJacket::TransitionSystem.new
-      @system.add pending: [:approved, :rejected]
-      @system.add approved: :completed
-      @system.add rejected: :completed
+      @matrix = StateJacket::Matrix.new
+      @matrix.add pending: [:approved, :rejected]
+      @matrix.add approved: :completed
+      @matrix.add rejected: :completed
 
-      @machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      @machine = StateJacket::Machine.new(@matrix, current_state: :pending)
     end
 
     def test_array_source_for_from_states

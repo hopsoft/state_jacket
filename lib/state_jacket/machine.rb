@@ -1,51 +1,25 @@
 # frozen_string_literal: true
 
 module StateJacket
-  # StateMachine implements a state machine based on a defined TransitionSystem.
+  # Machine implements a state machine based on a defined Matrix.
   #
   # A state machine:
   # - Tracks the current state from the set of allowed states
   # - Defines events that trigger transitions between states
-  # - Enforces that transitions follow the rules of the underlying transition system
+  # - Enforces that transitions follow the rules of the underlying matrix
   # - Provides introspection methods to query available events and states
   # - Supports long-running processes and workflow resumption
-  # - Allows transition system and event definitions to evolve between pauses
+  # - Allows matrix and event definitions to evolve between pauses
   #
   # Once a state machine is locked, it can only execute transitions, not define new ones.
   #
-  # Workflow Resumption:
-  # StateMachine supports pausing and resuming workflows across process boundaries.
-  # This is particularly useful for long-running processes that may span days,
-  # weeks, or months and need to persist state between executions.
-  #
-  # A key feature is that both the transition system and state machine event definitions
-  # can evolve between pauses, allowing workflows to adapt to changing requirements:
-  #
-  # ```ruby
-  # # Day 1: Start workflow with initial transition system
-  # initial_system = create_transition_system
-  # machine = StateMachine.new(initial_system, current_state: :submitted)
-  # # ... define events and transitions
-  # machine.lock
-  # machine.trigger(:review)
-  #
-  # # Save state to persistent storage
-  # saved_state = machine.current_state # => "under_review"
-  #
-  # # Day 3: Resume workflow with an evolved transition system
-  # evolved_system = create_evolved_transition_system  # System with new/changed states
-  # resumed_machine = StateMachine.new(evolved_system, current_state: saved_state)
-  # # ... define potentially different events for current state
-  # resumed_machine.lock
-  # # ... continue workflow with new capabilities
-  # ```
-  #
-  # This evolution capability is powerful but requires careful management to ensure
-  # that saved states remain valid in evolved systems.
-  #
-  class StateMachine
+  class Machine
+    include MonitorMixin
+
+    class Error < StandardError; end
+
     class << self
-      # Creates a new StateMachine from a hash representation.
+      # Creates a new Machine from a hash representation.
       #
       # This method facilitates persistence and restoration of state machines
       # for long-running processes that span multiple sessions.
@@ -53,18 +27,18 @@ module StateJacket
       # Alias: from_h
       #
       # @example Creating from a hash representation
-      #   system = StateJacket::TransitionSystem.from_hash(system_hash)
+      #   matrix = StateJacket::Matrix.from_hash(matrix_hash)
       #   hash = existing_machine.to_hash
-      #   machine = StateMachine.from_hash(system, hash)
+      #   machine = Machine.from_hash(matrix, hash)
       #
-      # @rbs transition_system: TransitionSystem
+      # @rbs matrix: Matrix
       # @rbs hash: Hash[Symbol | String, Object]
-      # @rbs return: StateMachine
-      def from_hash(transition_system, hash)
+      # @rbs return: Machine
+      def from_hash(matrix, hash)
         current_state = hash[:current_state] || hash["current_state"]
-        raise ArgumentError, "Hash must contain a 'current_state' key" unless current_state
+        raise Error, "Hash must contain a 'current_state' key" unless current_state
 
-        machine = new(transition_system, current_state: current_state)
+        machine = new(matrix, current_state: current_state)
         rules = hash[:rules] || hash["rules"] || []
 
         rules.each do |event, transitions|
@@ -83,7 +57,7 @@ module StateJacket
       alias_method :from_h, :from_hash
     end
 
-    # @rbs @transition_system: TransitionSystem
+    # @rbs @matrix: Matrix
     # @rbs @current_state: String
     # @rbs @states: Array[String]
     # @rbs @cache: Hash[[String, String], Hash[String, String]]
@@ -92,43 +66,59 @@ module StateJacket
     # @rbs @locked: bool
 
     # standard:disable Layout/LeadingCommentSpace
-    attr_reader :current_state #: String -- The current state of the state machine
     attr_reader :events #: Array[String] -- List of all defined event names
-    attr_reader :rules #: Hash[String, Array[Hash[String, String]]] -- Mapping of event names to their transition rules
-    attr_reader :states #: Array[String] -- List of all available states in the transition system
-    attr_reader :transition_system #: TransitionSystem -- The underlying transition system that governs allowed transitions
+    attr_reader :states #: Array[String] -- List of all available states defined in the matrix
+    attr_reader :matrix #: Matrix -- The underlying state matrix that governs allowed state transitions
     # standard:enable Layout/LeadingCommentSpace
 
     # --------------------------------------------------------------------------
     # Core Initialization and State Methods
     # --------------------------------------------------------------------------
 
-    # Initializes a new StateMachine with a transition system and initial state.
+    # Initializes a new Machine with a state matrix and initial state.
     #
-    # @rbs transition_system: TransitionSystem
+    # @rbs matrix: Matrix
     # @rbs current_state: String | Symbol
     # @rbs return: void
-    def initialize(transition_system, current_state:)
-      raise ArgumentError, "transition_system cannot be nil" if transition_system.nil?
+    def initialize(matrix, current_state:)
+      super()
 
-      unless transition_system.include?(current_state)
-        raise ArgumentError, "illegal state '#{current_state}'. Available states: #{transition_system.states.inspect}"
+      raise Error, "matrix cannot be nil" if matrix.nil?
+
+      unless matrix.include?(current_state)
+        raise Error, "illegal state '#{current_state}'. Available states: #{matrix.states.inspect}"
       end
 
-      @transition_system = transition_system.lock
+      @matrix = matrix.lock
       @current_state = current_state.to_s
-      @states = transition_system.states
+      @states = matrix.states
 
       @cache = {}
       @events = []
       @rules = {}
     end
 
+    # Returns the current state of the state machine.
+    # Reading @current_state is safe without synchronization since:
+    # - String reads are atomic in Ruby
+    # - @current_state is only modified within synchronized blocks
+    #
+    # @rbs return: String
+    attr_reader :current_state
+
+    # Returns a copy of the rules mapping.
+    # This provides thread-safe access to the current rule definitions.
+    #
+    # @rbs return: Hash[String, Array[Hash[String, String]]]
+    def rules
+      synchronize { @rules.dup }
+    end
+
     # Returns true if the current state is a terminal state (has no outgoing transitions).
     #
     # @rbs return: bool
     def finished?
-      transition_system.terminal? current_state
+      matrix.terminal? current_state
     end
 
     # --------------------------------------------------------------------------
@@ -142,29 +132,31 @@ module StateJacket
     # @rbs transitions: Hash[String | Symbol | Array[String | Symbol], String | Symbol]
     # @rbs return: self
     def on(event, transitions = {})
-      raise "events cannot be added after locking" if locked?
-      raise ArgumentError, "transitions cannot be nil" if transitions.nil?
+      synchronize do
+        raise Error, "events cannot be added after locking" if @locked
+        raise Error, "transitions cannot be nil" if transitions.nil?
 
-      event = event.to_s
-      rules[event] ||= []
+        event = event.to_s
+        @rules[event] ||= []
 
-      payload = transitions.each_with_object({}) do |(from, to), memo|
-        case from
-        in Array then from.each { memo[it.to_s] = to.to_s }
-        else memo[from.to_s] = to.to_s
+        payload = transitions.each_with_object({}) do |(from, to), memo|
+          case from
+          in Array then from.each { memo[it.to_s] = to.to_s }
+          else memo[from.to_s] = to.to_s
+          end
         end
-      end
 
-      payload.each do |from, to|
-        raise ArgumentError, "illegal transition: {'#{from}' => '#{to}'} " unless transition_system.allows?(from => to)
+        payload.each do |from, to|
+          raise Error, "illegal transition: {'#{from}' => '#{to}'} " unless matrix.allows?(from => to)
 
-        transition = {from => to}
-        index = rules[event].index { it.keys.first == from }
-        index ?
-          rules[event][index] = transition :
-          rules[event] << transition
+          transition = {from => to}
+          index = @rules[event].index { it.keys.first == from }
+          index ?
+            @rules[event][index] = transition :
+            @rules[event] << transition
 
-        @cache[[event, from]] = transition
+          @cache[[event, from]] = transition
+        end
       end
 
       self
@@ -174,25 +166,27 @@ module StateJacket
     # If a block is given, it is called with the from and to states before the transition occurs.
     #
     # @rbs event: String | Symbol
-    # @rbs return: TransitionResult
+    # @rbs return: Transition
     def trigger(event)
-      raise "must be locked before triggering events" unless locked?
+      synchronize do
+        raise Error, "must be locked before triggering events" unless @locked
 
-      event = event.to_s
-      raise ArgumentError, "event '#{event}' not defined. Available events: #{rules.keys.inspect}" unless include?(event)
+        event = event.to_s
+        raise Error, "event '#{event}' not defined. Available events: #{@rules.keys.inspect}" unless @rules.key?(event.to_s)
 
-      transition = @cache[[event, current_state]]
-      raise ArgumentError, "transition not found for '#{event}' + '#{current_state}'" unless transition
+        transition = @cache[[event, @current_state]]
+        raise Error, "transition not found for '#{event}' + '#{@current_state}'" unless transition
 
-      from = current_state
-      to = transition.values.first
+        from = @current_state
+        to = transition.values.first
 
-      begin
-        yield from, to if block_given?
-        @current_state = to
-        TransitionResult.new event, from, to, :ok
-      rescue => error
-        TransitionResult.new event, from, to, :error, error
+        begin
+          yield from, to if block_given?
+          @current_state = to
+          Transition.new event, from, to, :ok
+        rescue => error
+          Transition.new event, from, to, :error, error
+        end
       end
     end
 
@@ -206,18 +200,25 @@ module StateJacket
     # @rbs return: self
     def lock
       return self if locked?
-      rules.values.each do
-        it.each(&:freeze)
-        it.freeze
+
+      synchronize do
+        @rules.values.each do
+          it.each(&:freeze)
+          it.freeze
+        end
+        @rules.freeze
+        @events = @rules.keys.freeze
+        @cache.freeze
+        @locked = true
       end
-      rules.freeze
-      @events = rules.keys.freeze
-      @cache.freeze
-      @locked = true
+
       self
     end
 
     # Returns true if the state machine is locked.
+    # Reading @locked is safe without synchronization since:
+    # - Boolean reads are atomic in Ruby
+    # - @locked is only modified within synchronized blocks
     #
     # @rbs return: bool
     def locked?
@@ -251,7 +252,7 @@ module StateJacket
         finished: finished?,
         reachable_states: reachable_states,
         triggerable_events: triggerable_events,
-        rules: rules.dup
+        rules: rules
       }
     end
 
@@ -266,7 +267,7 @@ module StateJacket
     # @rbs event: String | Symbol
     # @rbs return: bool
     def include?(event)
-      rules.key? event.to_s
+      synchronize { @rules.key? event.to_s }
     end
 
     # Returns true if the given event can be triggered from the current state.
@@ -276,7 +277,7 @@ module StateJacket
     # @rbs return: bool
     def can_trigger?(event)
       return false unless locked?
-      !!@cache[[event.to_s, current_state]]
+      synchronize { !!@cache[[event.to_s, @current_state]] }
     end
 
     # Returns an array of events that can be triggered from the current state.
@@ -285,7 +286,7 @@ module StateJacket
     # @rbs return: Array[String]
     def triggerable_events
       return [] unless locked?
-      rules.keys.select { @cache[[it, current_state]] }
+      synchronize { @rules.keys.select { @cache[[it, @current_state]] } }
     end
 
     # Returns an array of states that can be reached from the current state
@@ -296,12 +297,14 @@ module StateJacket
     def reachable_states
       return [] unless locked?
 
-      states = rules.keys.each_with_object(Set.new) do |event, memo|
-        transition = @cache[[event, current_state]]
-        memo << transition.values.first if transition
-      end
+      synchronize do
+        states = @rules.keys.each_with_object(Set.new) do |event, memo|
+          transition = @cache[[event, @current_state]]
+          memo << transition.values.first if transition
+        end
 
-      states.to_a
+        states.to_a
+      end
     end
   end
 end

@@ -3,79 +3,79 @@
 require_relative "../test_helper"
 
 class StateJacket::EdgeCasesTest < Test
-  class TransitionSystemEdgeCasesTest < Test
-    def test_empty_system
-      system = StateJacket::TransitionSystem.new
-      assert_equal [], system.states
-      assert_equal [], system.transitioners
-      assert_equal [], system.terminals
+  class MatrixEdgeCasesTest < Test
+    def test_empty_matrix
+      matrix = StateJacket::Matrix.new
+      assert_equal [], matrix.states
+      assert_equal [], matrix.transitioners
+      assert_equal [], matrix.terminals
 
-      # Lock an empty system
-      system.lock
-      assert system.locked?
-      assert_equal [], system.states
+      # Lock an empty matrix
+      matrix.lock
+      assert matrix.locked?
+      assert_equal [], matrix.states
     end
 
     def test_nil_and_empty_values
-      system = StateJacket::TransitionSystem.new
+      matrix = StateJacket::Matrix.new
 
       # Add nil target explicitly (creates terminal state)
-      system.add pending: nil
-      assert_equal ["pending"], system.states
-      assert_equal [], system.transitioners
-      assert_equal ["pending"], system.terminals
+      matrix.add pending: nil
+      assert_equal ["pending"], matrix.states
+      assert_equal [], matrix.transitioners
+      assert_equal ["pending"], matrix.terminals
 
       # Add empty array target (this creates a transitioner with no targets)
-      system.add active: []
-      assert_equal ["active", "pending"], system.states.sort
-      assert_equal ["active"], system.transitioners
-      assert_equal ["pending"], system.terminals
+      matrix.add active: []
+      assert_equal ["active", "pending"], matrix.states.sort
+      assert_equal ["active"], matrix.transitioners
+      assert_equal ["pending"], matrix.terminals
     end
 
     def test_circular_references
-      system = StateJacket::TransitionSystem.new
+      matrix = StateJacket::Matrix.new
 
       # Create a circular reference
-      system.add state_a: :state_b
-      system.add state_b: :state_c
-      system.add state_c: :state_a
+      matrix.add state_a: :state_b
+      matrix.add state_b: :state_c
+      matrix.add state_c: :state_a
 
-      assert_equal ["state_a", "state_b", "state_c"], system.states.sort
-      assert_equal ["state_a", "state_b", "state_c"], system.transitioners.sort
-      assert_equal [], system.terminals
+      assert_equal ["state_a", "state_b", "state_c"], matrix.states.sort
+      assert_equal ["state_a", "state_b", "state_c"], matrix.transitioners.sort
+      assert_equal [], matrix.terminals
 
       # Test allows? for circular references
-      assert system.allows?("state_a" => "state_b")
-      assert system.allows?("state_b" => "state_c")
-      assert system.allows?("state_c" => "state_a")
+      assert matrix.allows?("state_a" => "state_b")
+      assert matrix.allows?("state_b" => "state_c")
+      assert matrix.allows?("state_c" => "state_a")
     end
 
     def test_self_reference
-      system = StateJacket::TransitionSystem.new
+      matrix = StateJacket::Matrix.new
 
       # Create a self-referential state
-      system.add state_a: :state_a
+      matrix.add state_a: :state_a
 
-      assert_equal ["state_a"], system.states
-      assert_equal ["state_a"], system.transitioners
-      assert_equal [], system.terminals
+      assert_equal ["state_a"], matrix.states
+      assert_equal ["state_a"], matrix.transitioners
+      assert_equal [], matrix.terminals
 
       # Test allows? for self-reference
-      assert system.allows?("state_a" => "state_a")
+      assert matrix.allows?("state_a" => "state_a")
     end
   end
 
-  class StateMachineEdgeCasesTest < Test
+  class MachineEdgeCasesTest < Test
     def setup
-      @system = StateJacket::TransitionSystem.new
-      @system.add state_a: [:state_b, :state_c]
-      @system.add state_b: :state_c
-      @system.add state_c: :state_a
-      @system.lock
+      @matrix = StateJacket::Matrix.new
+      @matrix.add state_a: [:state_b, :state_c]
+      @matrix.add state_b: :state_c
+      @matrix.add state_c: :state_a
+      @matrix.lock
     end
 
     def test_machine_with_no_events
-      machine = StateJacket::StateMachine.new(@system, current_state: :state_a)
+      machine = StateJacket::Machine.new(@matrix, current_state: :state_a)
       machine.lock
 
       assert_equal [], machine.events
@@ -84,7 +84,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_multiple_events_to_same_target
-      machine = StateJacket::StateMachine.new(@system, current_state: :state_a)
+      machine = StateJacket::Machine.new(@matrix, current_state: :state_a)
 
       # Define two events for the same transition
       machine.on :event_1, state_a: :state_b
@@ -101,7 +101,7 @@ class StateJacket::EdgeCasesTest < Test
       assert_equal "state_b", machine.current_state
 
       # Reset for next test
-      machine = StateJacket::StateMachine.new(@system, current_state: :state_a)
+      machine = StateJacket::Machine.new(@matrix, current_state: :state_a)
       machine.on :event_1, state_a: :state_b
       machine.on :event_2, state_a: :state_b
       machine.lock
@@ -112,7 +112,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_same_event_to_different_targets
-      machine = StateJacket::StateMachine.new(@system, current_state: :state_a)
+      machine = StateJacket::Machine.new(@matrix, current_state: :state_a)
 
       # Define one event for multiple transitions
       machine.on :multi_event, state_a: :state_b, state_b: :state_c, state_c: :state_a
@@ -141,57 +141,57 @@ class StateJacket::EdgeCasesTest < Test
 
   class ErrorHandlingEdgeCasesTest < Test
     def setup
-      @system = StateJacket::TransitionSystem.new
-      @system.add pending: [:approved, :rejected]
-      @system.lock
+      @matrix = StateJacket::Matrix.new
+      @matrix.add pending: [:approved, :rejected]
+      @matrix.lock
     end
 
     def test_invalid_initial_state
-      assert_raises(ArgumentError, "illegal state") do
-        StateJacket::StateMachine.new(@system, current_state: :non_existent)
+      assert_raises(StateJacket::Machine::Error, "illegal state") do
+        StateJacket::Machine.new(@matrix, current_state: :non_existent)
       end
 
-      assert_raises(ArgumentError, "illegal state") do
-        StateJacket::StateMachine.new(@system, current_state: nil)
+      assert_raises(StateJacket::Machine::Error, "illegal state") do
+        StateJacket::Machine.new(@matrix, current_state: nil)
       end
     end
 
-    def test_nil_transition_system
-      assert_raises(ArgumentError, "transition_system cannot be nil") do
-        StateJacket::StateMachine.new(nil, current_state: :pending)
+    def test_nil_matrix
+      assert_raises(StateJacket::Machine::Error, "matrix cannot be nil") do
+        StateJacket::Machine.new(nil, current_state: :pending)
       end
     end
 
     def test_trigger_without_locking
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on :approve, pending: :approved
 
-      assert_raises(RuntimeError, "must be locked before triggering events") do
+      assert_raises(StateJacket::Machine::Error, "must be locked before triggering events") do
         machine.trigger(:approve)
       end
     end
 
     def test_add_event_after_locking
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.lock
 
-      assert_raises(RuntimeError, "events cannot be added after locking") do
+      assert_raises(StateJacket::Machine::Error, "events cannot be added after locking") do
         machine.on :approve, pending: :approved
       end
     end
 
     def test_trigger_nonexistent_event
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.lock
 
-      assert_raises(ArgumentError) do
+      assert_raises(StateJacket::Machine::Error) do
         machine.trigger(:reject)
       end
     end
 
     def test_error_in_transition_block
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.lock
 
@@ -206,7 +206,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_error_types_in_transition_block
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.lock
 
@@ -221,7 +221,7 @@ class StateJacket::EdgeCasesTest < Test
       assert_equal "pending", machine.current_state
 
       # Create a new machine instance
-      machine2 = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine2 = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine2.on :approve, pending: :approved
       machine2.lock
 
@@ -238,7 +238,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_empty_string_event_handling
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on "", pending: :approved  # Empty string event
       machine.lock
 
@@ -249,7 +249,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_whitespace_event_handling
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on "  ", pending: :approved  # Whitespace event
       machine.on "\t", pending: :rejected   # Tab character event
       machine.lock
@@ -260,7 +260,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_special_character_events
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on "event-with-dashes", pending: :approved
       machine.on "event_with_underscores", pending: :rejected
       machine.on "event.with.dots", pending: :approved
@@ -274,7 +274,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_symbol_to_string_conversion_consistency
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
 
       # Define with symbol
       machine.on :approve, pending: :approved
@@ -292,7 +292,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_very_long_event_name
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       long_event_name = "a" * 1000  # Very long event name
       machine.on long_event_name, pending: :approved
       machine.lock
@@ -303,7 +303,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_unicode_event_names
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on "승인", pending: :approved  # Korean characters
       machine.on "🚀", pending: :rejected    # Emoji
       machine.lock
@@ -319,14 +319,14 @@ class StateJacket::EdgeCasesTest < Test
 
   class StateConsistencyAndFrozenObjectTest < Test
     def setup
-      @system = StateJacket::TransitionSystem.new
-      @system.add pending: [:approved, :rejected]
-      @system.add approved: :completed
-      @system.lock
+      @matrix = StateJacket::Matrix.new
+      @matrix.add pending: [:approved, :rejected]
+      @matrix.add approved: :completed
+      @matrix.lock
     end
 
     def test_frozen_rules_after_locking
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.on :reject, pending: :rejected
       machine.lock
@@ -341,16 +341,22 @@ class StateJacket::EdgeCasesTest < Test
       end
     end
 
-    def test_transition_system_frozen_after_locking
-      # System should have frozen internal structures
-      assert @system.rules.frozen?
-      @system.rules.values.each do |target_array|
-        assert target_array.frozen? if target_array
-      end
+    def test_matrix_frozen_after_locking
+      # Matrix should be locked and have consistent behavior
+      assert @matrix.locked?
+
+      # Should be able to access rules consistently
+      rules1 = @matrix.rules
+      rules2 = @matrix.rules
+      assert_equal rules1, rules2
+
+      # Cached values should be available when locked
+      assert @matrix.cached_terminals
+      assert @matrix.cached_transitioners
     end
 
     def test_introspection_consistency_after_multiple_operations
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.on :complete, approved: :completed
       machine.lock
@@ -376,8 +382,8 @@ class StateJacket::EdgeCasesTest < Test
       assert_equal ["completed"], machine.reachable_states
     end
 
-    def test_state_machine_to_h_immutability
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+    def test_machine_to_h_immutability
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.lock
 
@@ -398,7 +404,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_frozen_object_method_calls
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.lock
 
@@ -421,13 +427,13 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_pattern_matching_with_frozen_objects
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.lock
 
       # Pattern matching should work with frozen machine
       result = case machine
-      in { current_state: "pending", locked: true }
+      in {current_state: "pending", locked: true}
         "correctly matched"
       else
         "failed to match"
@@ -439,7 +445,7 @@ class StateJacket::EdgeCasesTest < Test
       transition_result = machine.trigger(:approve)
 
       matched_event = case transition_result
-      in { event: event, status: :ok }
+      in {event: event, status: :ok}
         event
       else
         "no match"
@@ -449,7 +455,7 @@ class StateJacket::EdgeCasesTest < Test
     end
 
     def test_error_state_consistency
-      machine = StateJacket::StateMachine.new(@system, current_state: :pending)
+      machine = StateJacket::Machine.new(@matrix, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.lock
 
@@ -474,89 +480,89 @@ class StateJacket::EdgeCasesTest < Test
 
   class TerminalStateEdgeCasesTest < Test
     def setup
-      @system = StateJacket::TransitionSystem.new
-      @system.add active: [:suspended, :deactivated]
-      @system.add suspended: :deactivated
-      @system.add pending: :active
-      @system.add deactivated: nil  # explicit terminal state
-      @system.lock
+      @matrix = StateJacket::Matrix.new
+      @matrix.add active: [:suspended, :deactivated]
+      @matrix.add suspended: :deactivated
+      @matrix.add pending: :active
+      @matrix.add deactivated: nil  # explicit terminal state
+      @matrix.lock
     end
 
     def test_overlaps_with_terminal_states
       # overlaps? should now correctly handle terminal state transitions
-      refute @system.overlaps?(active: nil), "active cannot become terminal (has outgoing transitions)"
-      refute @system.overlaps?(suspended: nil), "suspended cannot become terminal (has outgoing transitions)"
-      assert @system.overlaps?(deactivated: nil), "deactivated is already terminal, so overlaps with nil"
+      refute @matrix.overlaps?(active: nil), "active cannot become terminal (has outgoing transitions)"
+      refute @matrix.overlaps?(suspended: nil), "suspended cannot become terminal (has outgoing transitions)"
+      assert @matrix.overlaps?(deactivated: nil), "deactivated is already terminal, so overlaps with nil"
 
       # Test with empty array (should return false)
-      refute @system.overlaps?(active: []), "overlaps? returns false for empty target array"
+      refute @matrix.overlaps?(active: []), "overlaps? returns false for empty target array"
     end
 
     def test_match_with_terminal_states
       # match? should work correctly with terminal states
-      assert @system.match?(deactivated: nil), "match? should work with explicit terminal states"
-      refute @system.match?(active: nil), "active is not a terminal state"
-      refute @system.match?(suspended: nil), "suspended is not a terminal state"
+      assert @matrix.match?(deactivated: nil), "match? should work with explicit terminal states"
+      refute @matrix.match?(active: nil), "active is not a terminal state"
+      refute @matrix.match?(suspended: nil), "suspended is not a terminal state"
     end
 
     def test_allows_with_terminal_states
       # allows? should handle terminal state checks
-      refute @system.allows?(deactivated: "active"), "terminal states cannot transition"
-      refute @system.allows?(deactivated: "suspended"), "terminal states cannot transition"
+      refute @matrix.allows?(deactivated: "active"), "terminal states cannot transition"
+      refute @matrix.allows?(deactivated: "suspended"), "terminal states cannot transition"
 
       # Test valid transitions to terminal behavior
-      assert @system.allows?(active: "deactivated"), "active can transition to deactivated"
-      assert @system.allows?(suspended: "deactivated"), "suspended can transition to deactivated"
+      assert @matrix.allows?(active: "deactivated"), "active can transition to deactivated"
+      assert @matrix.allows?(suspended: "deactivated"), "suspended can transition to deactivated"
     end
 
-    def test_terminal_state_system_consistency
+    def test_terminal_state_matrix_consistency
       # Verify that states identified as terminal behave consistently
-      assert @system.terminal?("deactivated")
-      refute @system.transitioner?("deactivated")
+      assert @matrix.terminal?("deactivated")
+      refute @matrix.transitioner?("deactivated")
 
       # Verify that implicit terminal states work too
       # (states that are targets but have no outgoing transitions)
-      @system2 = StateJacket::TransitionSystem.new
-      @system2.add start: :finish  # 'finish' becomes an implicit terminal
-      @system2.lock
+      @matrix2 = StateJacket::Matrix.new
+      @matrix2.add start: :finish  # 'finish' becomes an implicit terminal
+      @matrix2.lock
 
-      assert @system2.terminal?("finish")
-      refute @system2.transitioner?("finish")
-      assert @system2.match?(finish: nil)
+      assert @matrix2.terminal?("finish")
+      refute @matrix2.transitioner?("finish")
+      assert @matrix2.match?(finish: nil)
     end
 
     def test_normalize_method_edge_cases
       # Test that the private normalize method handles edge cases correctly
-      @test_system = StateJacket::TransitionSystem.new
+      @test_matrix = StateJacket::Matrix.new
 
       # Test with array containing nil values should raise error
-      assert_raises(ArgumentError, "nil transition key") do
-        @test_system.add [:valid_state, nil] => :target
+      assert_raises(StateJacket::Matrix::Error, "nil transition key") do
+        @test_matrix.add [:valid_state, nil] => :target
       end
 
       # Test with empty array as from state should raise error
-      assert_raises(ArgumentError, "missing transition key") do
-        @test_system.add [] => :target
+      assert_raises(StateJacket::Matrix::Error, "missing transition key") do
+        @test_matrix.add [] => :target
       end
     end
   end
 
   class IntegrationEdgeCasesTest < Test
     def test_thread_safety
-      # This test verifies that independent machines with the same transition system don't interfere
-      system = StateJacket::TransitionSystem.new
-      system.add pending: [:approved, :rejected]
-      system.add approved: :completed
-      system.add rejected: :cancelled
-      system.lock
+      # This test verifies that independent machines with the same transition matrix don't interfere
+      matrix = StateJacket::Matrix.new
+      matrix.add pending: [:approved, :rejected]
+      matrix.add approved: :completed
+      matrix.add rejected: :cancelled
+      matrix.lock
 
-      # Create two machines with the same transition system
-      machine1 = StateJacket::StateMachine.new(system, current_state: :pending)
+      # Create two machines with the same transition matrix
+      machine1 = StateJacket::Machine.new(matrix, current_state: :pending)
       machine1.on :approve, pending: :approved
       machine1.on :complete, approved: :completed
       machine1.lock
 
-      machine2 = StateJacket::StateMachine.new(system, current_state: :pending)
+      machine2 = StateJacket::Machine.new(matrix, current_state: :pending)
       machine2.on :reject, pending: :rejected
       machine2.on :cancel, rejected: :cancelled
       machine2.lock
@@ -582,26 +588,26 @@ class StateJacket::EdgeCasesTest < Test
       assert_equal "cancelled", machine2.current_state
     end
 
-    def test_nested_transition_system
+    def test_nested_matrix
       # Test a complex nested state machine scenario
 
       # Main state machine for order processing
-      order_system = StateJacket::TransitionSystem.new
-      order_system.add cart: [:checkout, :abandoned]
-      order_system.add checkout: [:payment, :cancelled]
-      order_system.add payment: [:shipping, :failed]
-      order_system.add shipping: :delivered
-      order_system.lock
+      order_matrix = StateJacket::Matrix.new
+      order_matrix.add cart: [:checkout, :abandoned]
+      order_matrix.add checkout: [:payment, :cancelled]
+      order_matrix.add payment: [:shipping, :failed]
+      order_matrix.add shipping: :delivered
+      order_matrix.lock
 
       # Payment processor sub-system
-      payment_system = StateJacket::TransitionSystem.new
-      payment_system.add pending: [:authorized, :declined]
-      payment_system.add authorized: [:captured, :voided]
-      payment_system.add captured: :settled
-      payment_system.lock
+      payment_matrix = StateJacket::Matrix.new
+      payment_matrix.add pending: [:authorized, :declined]
+      payment_matrix.add authorized: [:captured, :voided]
+      payment_matrix.add captured: :settled
+      payment_matrix.lock
 
       # Create main state machine
-      order_machine = StateJacket::StateMachine.new(order_system, current_state: :cart)
+      order_machine = StateJacket::Machine.new(order_matrix, current_state: :cart)
       order_machine.on :checkout, cart: :checkout
       order_machine.on :cancel, checkout: :cancelled
       order_machine.on :process_payment, checkout: :payment
@@ -611,7 +617,7 @@ class StateJacket::EdgeCasesTest < Test
       order_machine.lock
 
       # Create payment state machine
-      payment_machine = StateJacket::StateMachine.new(payment_system, current_state: :pending)
+      payment_machine = StateJacket::Machine.new(payment_matrix, current_state: :pending)
       payment_machine.on :authorize, pending: :authorized
       payment_machine.on :decline, pending: :declined
       payment_machine.on :capture, authorized: :captured

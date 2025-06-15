@@ -2,13 +2,13 @@
 
 require_relative "../../test_helper"
 
-class StateJacket::StateMachine::IntrospectionTest < Test
+class StateJacket::Machine::IntrospectionTest < Test
   class ApprovalsTest < Test
     def setup
-      system = StateJacket::TransitionSystem.new
-      system.add pending: [:approved, :rejected]
+      matrix = StateJacket::Matrix.new
+      matrix.add pending: [:approved, :rejected]
 
-      @machine = StateJacket::StateMachine.new(system, current_state: :pending)
+      @machine = StateJacket::Machine.new(matrix, current_state: :pending)
       @machine.on :approve, pending: :approved
       @machine.on :reject, pending: :rejected
       @machine.lock
@@ -97,7 +97,7 @@ class StateJacket::StateMachine::IntrospectionTest < Test
     end
 
     def test_locked
-      machine = StateJacket::StateMachine.new(@machine.transition_system, current_state: :pending)
+      machine = StateJacket::Machine.new(@machine.matrix, current_state: :pending)
       machine.on :approve, pending: :approved
 
       refute machine.locked?, "Machine should not be locked initially"
@@ -142,11 +142,11 @@ class StateJacket::StateMachine::IntrospectionTest < Test
 
   class RailwayTest < Test
     def setup
-      system = StateJacket::TransitionSystem.new
-      system.add station_a: [:station_b, :station_c]
-      system.add station_b: :station_c
+      matrix = StateJacket::Matrix.new
+      matrix.add station_a: [:station_b, :station_c]
+      matrix.add station_b: :station_c
 
-      @machine = StateJacket::StateMachine.new(system, current_state: :station_a)
+      @machine = StateJacket::Machine.new(matrix, current_state: :station_a)
       @machine.on :route_1, station_a: :station_b
       @machine.on :route_2, station_a: :station_c
       @machine.on :route_3, station_b: :station_c
@@ -246,13 +246,13 @@ class StateJacket::StateMachine::IntrospectionTest < Test
 
   class EcommerceTest < Test
     def setup
-      system = StateJacket::TransitionSystem.new
-      system.add cart: [:submitted, :abandoned]
-      system.add submitted: [:paid, :cancelled]
-      system.add paid: :shipped
-      system.add shipped: :delivered
+      matrix = StateJacket::Matrix.new
+      matrix.add cart: [:submitted, :abandoned]
+      matrix.add submitted: [:paid, :cancelled]
+      matrix.add paid: :shipped
+      matrix.add shipped: :delivered
 
-      @machine = StateJacket::StateMachine.new(system, current_state: :cart)
+      @machine = StateJacket::Machine.new(matrix, current_state: :cart)
       @machine.on :submit, cart: :submitted
       @machine.on :abandon, cart: :abandoned
       @machine.on :pay, submitted: :paid
@@ -368,8 +368,8 @@ class StateJacket::StateMachine::IntrospectionTest < Test
       refute @machine.finished?, "Should not be finished in 'cart' state"
 
       # Try abandoned path
-      machine_abandoned = StateJacket::StateMachine.new(
-        @machine.transition_system,
+      machine_abandoned = StateJacket::Machine.new(
+        @machine.matrix,
         current_state: :cart
       )
       machine_abandoned.on :submit, cart: :submitted
@@ -418,13 +418,13 @@ class StateJacket::StateMachine::IntrospectionTest < Test
 
   class OrderProcessorTest < Test
     def setup
-      system = StateJacket::TransitionSystem.new
-      system.add cart: [:submitted, :abandoned]
-      system.add submitted: [:paid, :cancelled]
-      system.add paid: [:shipped, :refunded]
-      system.add shipped: [:delivered, :returned]
+      matrix = StateJacket::Matrix.new
+      matrix.add cart: [:submitted, :abandoned]
+      matrix.add submitted: [:paid, :cancelled]
+      matrix.add paid: [:shipped, :refunded]
+      matrix.add shipped: [:delivered, :returned]
 
-      @machine = StateJacket::StateMachine.new(system, current_state: :cart)
+      @machine = StateJacket::Machine.new(matrix, current_state: :cart)
       @machine.on :submit, cart: :submitted
       @machine.on :abandon, cart: :abandoned
       @machine.on :pay, submitted: :paid
@@ -562,8 +562,8 @@ class StateJacket::StateMachine::IntrospectionTest < Test
     def test_finished_terminal_states
       # Test all terminal states
       # Abandoned path
-      machine1 = StateJacket::StateMachine.new(
-        @machine.transition_system,
+      machine1 = StateJacket::Machine.new(
+        @machine.matrix,
         current_state: :cart
       )
       machine1.on :submit, cart: :submitted
@@ -574,8 +574,8 @@ class StateJacket::StateMachine::IntrospectionTest < Test
       assert machine1.finished?, "Should be finished in 'abandoned' state"
 
       # Cancelled path
-      machine2 = StateJacket::StateMachine.new(
-        @machine.transition_system,
+      machine2 = StateJacket::Machine.new(
+        @machine.matrix,
         current_state: :cart
       )
       machine2.on :submit, cart: :submitted
@@ -587,8 +587,8 @@ class StateJacket::StateMachine::IntrospectionTest < Test
       assert machine2.finished?, "Should be finished in 'cancelled' state"
 
       # Refunded path
-      machine3 = StateJacket::StateMachine.new(
-        @machine.transition_system,
+      machine3 = StateJacket::Machine.new(
+        @machine.matrix,
         current_state: :cart
       )
       machine3.on :submit, cart: :submitted
@@ -615,8 +615,8 @@ class StateJacket::StateMachine::IntrospectionTest < Test
       assert @machine.can_trigger?("refund")
 
       # Test shipped path
-      machine_shipped = StateJacket::StateMachine.new(
-        @machine.transition_system,
+      machine_shipped = StateJacket::Machine.new(
+        @machine.matrix,
         current_state: :paid
       )
       machine_shipped.on :ship, paid: :shipped
@@ -633,13 +633,13 @@ class StateJacket::StateMachine::IntrospectionTest < Test
 
   class UserAccountTest < Test
     def setup
-      system = StateJacket::TransitionSystem.new
-      system.add pending: [:active, :rejected]
-      system.add active: [:suspended, :deactivated]
-      system.add suspended: [:active, :deactivated]
-      system.add deactivated: :active # Loops back
+      matrix = StateJacket::Matrix.new
+      matrix.add pending: [:active, :rejected]
+      matrix.add active: [:suspended, :deactivated]
+      matrix.add suspended: [:active, :deactivated]
+      matrix.add deactivated: :active # Loops back
 
-      @machine = StateJacket::StateMachine.new(system, current_state: :pending)
+      @machine = StateJacket::Machine.new(matrix, current_state: :pending)
       @machine.on :activate, pending: :active
       @machine.on :reject, pending: :rejected
       @machine.on :suspend, active: :suspended
@@ -772,8 +772,8 @@ class StateJacket::StateMachine::IntrospectionTest < Test
       assert @machine.finished?, "Should be finished in 'rejected' state"
 
       # Other states aren't terminal due to the loops
-      machine2 = StateJacket::StateMachine.new(
-        @machine.transition_system,
+      machine2 = StateJacket::Machine.new(
+        @machine.matrix,
         current_state: :pending
       )
       machine2.on :activate, pending: :active

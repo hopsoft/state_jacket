@@ -2,17 +2,28 @@
 
 require "simplecov"
 require "amazing_print"
-require "minitest/autorun"
+
+# Prevent all plugin auto-discovery and load minitest-reporters manually
+ENV["MT_NO_PLUGINS"] = "1"
+
+require "minitest"
 require "minitest/reporters"
-require "pry-byebug"
+require "minitest/minitest_reporter_plugin"
 
-AmazingPrint.pry!
-FileUtils.mkdir_p "tmp"
-
+# Configure reporters before autorun
 Minitest::Reporters.use! [
   Minitest::Reporters::DefaultReporter.new(color: true, fail_fast: true, location: true),
   Minitest::Reporters::MeanTimeReporter.new(show_count: 3, show_progress: false, sort_column: :avg, previous_runs_filename: "tmp/minitest-report")
 ]
+
+# Manually register the reporter plugin since we disabled auto-discovery
+Minitest.extensions << "minitest_reporter"
+
+require "minitest/autorun"
+require "pry-byebug"
+
+AmazingPrint.pry!
+FileUtils.mkdir_p "tmp"
 
 # Configure SimpleCov with Coveralls integration for CI environments
 SimpleCov.start do

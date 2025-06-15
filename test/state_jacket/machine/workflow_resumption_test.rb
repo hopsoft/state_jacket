@@ -2,18 +2,18 @@
 
 require_relative "../../test_helper"
 
-class StateJacket::StateMachine::WorkflowResumptionTest < Test
+class StateJacket::Machine::WorkflowResumptionTest < Test
   # Tests focused on system and machine evolution between pauses
   class EvolutionTest < Test
-    def test_transition_system_evolution
+    def test_matrix_evolution
       # Start with a basic transition system with limited states
-      initial_system = StateJacket::TransitionSystem.new
+      initial_system = StateJacket::Matrix.new
       initial_system.add order_placed: :processing
       initial_system.add processing: :packed
       initial_system.lock
 
       # Create a machine and run through the first part of workflow
-      initial_machine = StateJacket::StateMachine.new(initial_system, current_state: :order_placed)
+      initial_machine = StateJacket::Machine.new(initial_system, current_state: :order_placed)
       initial_machine.on :process, order_placed: :processing
       initial_machine.on :pack, processing: :packed
       initial_machine.lock
@@ -26,7 +26,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
       # Later, the system evolves to include new states and transitions
       # This might happen due to business requirements changing or bugs being fixed
-      evolved_system = StateJacket::TransitionSystem.new
+      evolved_system = StateJacket::Matrix.new
       evolved_system.add order_placed: :processing
       evolved_system.add processing: [:packed, :cancelled]  # Added cancellation option
       evolved_system.add packed: [:shipped, :on_hold]       # Added new states
@@ -35,7 +35,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       evolved_system.lock
 
       # Resume workflow with the evolved transition system
-      evolved_machine = StateJacket::StateMachine.new(evolved_system, current_state: saved_state)
+      evolved_machine = StateJacket::Machine.new(evolved_system, current_state: saved_state)
       evolved_machine.on :pack, processing: :packed
       evolved_machine.on :cancel, processing: :cancelled    # New event
       evolved_machine.on :ship, packed: :shipped            # New future events
@@ -65,13 +65,14 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert evolved_machine.finished?
     end
 
-    def test_transition_system_evolution_pitfalls
+    def test_matrix_evolution_pitfalls
       # Initial system and workflow
-      initial_system = StateJacket::TransitionSystem.new
+      initial_system = StateJacket::Matrix.new
       initial_system.add pending: [:approved, :rejected]
       initial_system.lock
 
-      machine = StateJacket::StateMachine.new(initial_system, current_state: :pending)
+      # Initial machine and workflow
+      machine = StateJacket::Machine.new(initial_system, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.on :reject, pending: :rejected
       machine.lock
@@ -82,25 +83,25 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
       # Evolve the system but REMOVE the saved state
       # This is a potentially dangerous evolution
-      incompatible_system = StateJacket::TransitionSystem.new
+      incompatible_system = StateJacket::Matrix.new
       incompatible_system.add pending: :processing  # Different transition
       incompatible_system.add processing: :completed
       incompatible_system.lock
 
       # Attempting to resume with an incompatible system that doesn't include the saved state
-      assert_raises(ArgumentError) do
-        StateJacket::StateMachine.new(incompatible_system, current_state: saved_state)
+      assert_raises(StateJacket::Machine::Error) do
+        StateJacket::Machine.new(incompatible_system, current_state: saved_state)
       end
 
       # A safer evolution would preserve existing states
-      safe_evolved_system = StateJacket::TransitionSystem.new
+      safe_evolved_system = StateJacket::Matrix.new
       safe_evolved_system.add pending: [:processing, :rejected]
       safe_evolved_system.add processing: :completed
       safe_evolved_system.add approved: :completed  # Preserved the 'approved' state
       safe_evolved_system.lock
 
       # This works because the saved state exists in the evolved system
-      resumed_machine = StateJacket::StateMachine.new(safe_evolved_system, current_state: saved_state)
+      resumed_machine = StateJacket::Machine.new(safe_evolved_system, current_state: saved_state)
       resumed_machine.on :complete, approved: :completed
       resumed_machine.lock
 
@@ -113,7 +114,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
     def test_state_machine_evolution
       # Create a consistent transition system
-      system = StateJacket::TransitionSystem.new
+      system = StateJacket::Matrix.new
       system.add start: :in_progress
       system.add in_progress: [:review, :canceled]
       system.add review: [:approved, :rejected, :in_progress]  # Allow cyclic path back to in_progress
@@ -121,7 +122,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       system.lock
 
       # Initial machine with simple event definitions
-      initial_machine = StateJacket::StateMachine.new(system, current_state: :start)
+      initial_machine = StateJacket::Machine.new(system, current_state: :start)
       initial_machine.on :begin, start: :in_progress
       initial_machine.lock
 
@@ -130,7 +131,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert_equal "in_progress", saved_state
 
       # Evolve the state machine with different event names for the same transitions
-      evolved_machine = StateJacket::StateMachine.new(system, current_state: saved_state)
+      evolved_machine = StateJacket::Machine.new(system, current_state: saved_state)
       evolved_machine.on :submit_for_review, in_progress: :review   # New event name
       evolved_machine.on :abort, in_progress: :canceled             # New event name
       evolved_machine.lock
@@ -143,7 +144,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert_equal "review", evolved_machine.current_state
 
       # Further evolve with additional conditional paths
-      final_machine = StateJacket::StateMachine.new(system, current_state: evolved_machine.current_state)
+      final_machine = StateJacket::Machine.new(system, current_state: evolved_machine.current_state)
       final_machine.on :approve, review: :approved
       final_machine.on :reject, review: :rejected
       final_machine.on :revise, review: :in_progress  # Added cyclic transition not in original machine
@@ -157,7 +158,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert_equal "in_progress", final_machine.current_state
 
       # And continue with earlier defined events
-      final_machine = StateJacket::StateMachine.new(system, current_state: final_machine.current_state)
+      final_machine = StateJacket::Machine.new(system, current_state: final_machine.current_state)
       final_machine.on :submit_for_review, in_progress: :review
       final_machine.lock
 
@@ -169,7 +170,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
   class BasicWorkflowResumptionTest < Test
     def setup
       # Define a workflow transition system that might span multiple days or processes
-      @system = StateJacket::TransitionSystem.new
+      @system = StateJacket::Matrix.new
       @system.add draft: :review
       @system.add review: [:approved, :rejected]
       @system.add approved: :published
@@ -178,7 +179,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
     def test_basic_workflow_resumption
       # Start a workflow in one "process"
-      machine1 = StateJacket::StateMachine.new(@system, current_state: :draft)
+      machine1 = StateJacket::Machine.new(@system, current_state: :draft)
       machine1.on :submit, draft: :review
       machine1.on :approve, review: :approved
       machine1.on :reject, review: :rejected
@@ -193,7 +194,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       saved_state = machine1.current_state
 
       # In a new "process", load the saved state and continue the workflow
-      machine2 = StateJacket::StateMachine.new(@system, current_state: saved_state)
+      machine2 = StateJacket::Machine.new(@system, current_state: saved_state)
       machine2.on :approve, review: :approved
       machine2.on :reject, review: :rejected
       machine2.on :publish, approved: :published
@@ -207,7 +208,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       saved_state = machine2.current_state
 
       # In a third "process", complete the workflow
-      machine3 = StateJacket::StateMachine.new(@system, current_state: saved_state)
+      machine3 = StateJacket::Machine.new(@system, current_state: saved_state)
       machine3.on :publish, approved: :published
       machine3.lock
 
@@ -218,7 +219,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
     def test_resumption_with_different_transitions
       # Define a workflow in one process
-      machine1 = StateJacket::StateMachine.new(@system, current_state: :draft)
+      machine1 = StateJacket::Machine.new(@system, current_state: :draft)
       machine1.on :submit, draft: :review
       machine1.on :approve, review: :approved
       machine1.lock
@@ -232,7 +233,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
       # In a new process, create a machine with different transitions
       # but still compatible with the workflow
-      machine2 = StateJacket::StateMachine.new(@system, current_state: saved_state)
+      machine2 = StateJacket::Machine.new(@system, current_state: saved_state)
       machine2.on :reject, review: :rejected
       machine2.on :approve, review: :approved
       machine2.lock
@@ -251,7 +252,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
   class ComplexWorkflowResumptionTest < Test
     def setup
       # Define a more complex workflow transition system
-      @system = StateJacket::TransitionSystem.new
+      @system = StateJacket::Matrix.new
       @system.add application_submitted: [:under_review, :cancelled]
       @system.add under_review: [:pending_documents, :rejected, :approved]
       @system.add pending_documents: [:document_received, :expired]
@@ -263,7 +264,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
     def test_multi_step_workflow_resumption
       # Initial setup and first step
-      initial_machine = StateJacket::StateMachine.new(@system, current_state: :application_submitted)
+      initial_machine = StateJacket::Machine.new(@system, current_state: :application_submitted)
       initial_machine.on :review, application_submitted: :under_review
       initial_machine.on :cancel, application_submitted: :cancelled
       initial_machine.lock
@@ -271,7 +272,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       initial_machine.trigger(:review)
 
       # Day 1: Review starts
-      day1_machine = StateJacket::StateMachine.new(@system, current_state: initial_machine.current_state)
+      day1_machine = StateJacket::Machine.new(@system, current_state: initial_machine.current_state)
       day1_machine.on :request_documents, under_review: :pending_documents
       day1_machine.on :reject, under_review: :rejected
       day1_machine.on :approve, under_review: :approved
@@ -281,7 +282,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert_equal "pending_documents", day1_machine.current_state
 
       # Day 3: Documents received
-      day3_machine = StateJacket::StateMachine.new(@system, current_state: day1_machine.current_state)
+      day3_machine = StateJacket::Machine.new(@system, current_state: day1_machine.current_state)
       day3_machine.on :receive, pending_documents: :document_received
       day3_machine.on :expire, pending_documents: :expired
       day3_machine.lock
@@ -290,7 +291,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert_equal "document_received", day3_machine.current_state
 
       # Day 5: Back to review
-      day5_machine = StateJacket::StateMachine.new(@system, current_state: day3_machine.current_state)
+      day5_machine = StateJacket::Machine.new(@system, current_state: day3_machine.current_state)
       day5_machine.on :continue_review, document_received: :under_review
       day5_machine.lock
 
@@ -298,7 +299,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert_equal "under_review", day5_machine.current_state
 
       # Day 7: Approval
-      day7_machine = StateJacket::StateMachine.new(@system, current_state: day5_machine.current_state)
+      day7_machine = StateJacket::Machine.new(@system, current_state: day5_machine.current_state)
       day7_machine.on :approve, under_review: :approved
       day7_machine.on :reject, under_review: :rejected
       day7_machine.lock
@@ -307,7 +308,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert_equal "approved", day7_machine.current_state
 
       # Day 10: Activation
-      day10_machine = StateJacket::StateMachine.new(@system, current_state: day7_machine.current_state)
+      day10_machine = StateJacket::Machine.new(@system, current_state: day7_machine.current_state)
       day10_machine.on :activate, approved: :active
       day10_machine.on :withdraw, approved: :withdrawn
       day10_machine.lock
@@ -316,7 +317,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert_equal "active", day10_machine.current_state
 
       # Day 30: Completion
-      day30_machine = StateJacket::StateMachine.new(@system, current_state: day10_machine.current_state)
+      day30_machine = StateJacket::Machine.new(@system, current_state: day10_machine.current_state)
       day30_machine.on :complete, active: :completed
       day30_machine.on :terminate, active: :terminated
       day30_machine.lock
@@ -328,7 +329,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
     def test_serialize_and_deserialize_machine_state
       # Start workflow
-      machine = StateJacket::StateMachine.new(@system, current_state: :application_submitted)
+      machine = StateJacket::Machine.new(@system, current_state: :application_submitted)
       machine.on :review, application_submitted: :under_review
       machine.on :request_documents, under_review: :pending_documents
       machine.on :receive, pending_documents: :document_received
@@ -347,8 +348,8 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       serialized_system = @system.to_hash
 
       # Later, deserialize and continue using from_hash
-      system_restored = StateJacket::TransitionSystem.from_hash(serialized_system)
-      resumed_machine = StateJacket::StateMachine.from_hash(system_restored, serialized_machine)
+      system_restored = StateJacket::Matrix.from_hash(serialized_system)
+      resumed_machine = StateJacket::Machine.from_hash(system_restored, serialized_machine)
 
       # Verify state was properly restored
       assert_equal "pending_documents", resumed_machine.current_state
@@ -356,7 +357,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert_equal machine.rules.keys.sort, resumed_machine.rules.keys.sort
 
       # We need to define the events for the current state to continue
-      resumed_machine = StateJacket::StateMachine.new(system_restored, current_state: resumed_machine.current_state)
+      resumed_machine = StateJacket::Machine.new(system_restored, current_state: resumed_machine.current_state)
       resumed_machine.on :receive, pending_documents: :document_received
       resumed_machine.on :continue_review, document_received: :under_review
       resumed_machine.on :expire, pending_documents: :expired
@@ -375,7 +376,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
   class WorkflowRebuildingTest < Test
     def setup
-      @system = StateJacket::TransitionSystem.new
+      @system = StateJacket::Matrix.new
       @system.add new: :preparation
       @system.add preparation: [:ready, :cancelled]
       @system.add ready: [:running, :cancelled]
@@ -385,7 +386,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
     def test_rebuild_machine_from_state_and_valid_events
       # Original machine
-      machine = StateJacket::StateMachine.new(@system, current_state: :new)
+      machine = StateJacket::Machine.new(@system, current_state: :new)
       machine.on :prepare, new: :preparation
       machine.on :finalize, preparation: :ready
       machine.on :cancel, [:preparation, :ready] => :cancelled
@@ -407,7 +408,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       }
 
       # Later, rebuild the machine from just the serialized state
-      new_machine = StateJacket::StateMachine.new(@system, current_state: state_data[:current_state])
+      new_machine = StateJacket::Machine.new(@system, current_state: state_data[:current_state])
 
       # Only define the transitions that are relevant to the current state
       # and potential future states (in a real app, this might be loaded from configuration)
@@ -429,7 +430,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
     def test_resilient_to_event_redefinition
       # Define two machines with different event names but same state transitions
-      machine1 = StateJacket::StateMachine.new(@system, current_state: :new)
+      machine1 = StateJacket::Machine.new(@system, current_state: :new)
       machine1.on :begin_prep, new: :preparation
       machine1.lock
 
@@ -437,7 +438,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       current_state = machine1.current_state
 
       # Create a new machine with different event names
-      machine2 = StateJacket::StateMachine.new(@system, current_state: current_state)
+      machine2 = StateJacket::Machine.new(@system, current_state: current_state)
       machine2.on :complete, preparation: :ready
       machine2.on :abort, preparation: :cancelled
       machine2.lock
@@ -451,15 +452,15 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       assert_equal "ready", machine2.current_state
     end
 
-    def test_transition_system_replacement
+    def test_matrix_replacement
       # Start with one transition system
-      original_system = StateJacket::TransitionSystem.new
+      original_system = StateJacket::Matrix.new
       original_system.add new: :in_progress
       original_system.add in_progress: :completed
       original_system.lock
 
       # Use it for the initial part of workflow
-      machine = StateJacket::StateMachine.new(original_system, current_state: :new)
+      machine = StateJacket::Machine.new(original_system, current_state: :new)
       machine.on :start, new: :in_progress
       machine.lock
 
@@ -469,7 +470,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
       # Create a completely different transition system with a compatible state
       # This could represent a major version upgrade of your application
-      new_system = StateJacket::TransitionSystem.new
+      new_system = StateJacket::Matrix.new
       new_system.add new: :initialized            # Different initial flow
       new_system.add initialized: :in_progress    # Different path to in_progress
       new_system.add in_progress: [:verified, :failed]  # Different options from in_progress
@@ -478,7 +479,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       new_system.lock
 
       # Can still resume with the new system as long as current_state exists
-      resumed_machine = StateJacket::StateMachine.new(new_system, current_state: saved_state)
+      resumed_machine = StateJacket::Machine.new(new_system, current_state: saved_state)
       resumed_machine.on :verify, in_progress: :verified
       resumed_machine.on :fail, in_progress: :failed
       resumed_machine.on :retry, failed: :in_progress
@@ -503,12 +504,12 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
     def test_safe_system_evolution_patterns
       # PATTERN 1: Additive Evolution (safest)
       # Original system
-      original_system = StateJacket::TransitionSystem.new
+      original_system = StateJacket::Matrix.new
       original_system.add submitted: [:approved, :rejected]
       original_system.lock
 
       # Initial machine and workflow
-      machine = StateJacket::StateMachine.new(original_system, current_state: :submitted)
+      machine = StateJacket::Machine.new(original_system, current_state: :submitted)
       machine.on :approve, submitted: :approved
       machine.on :reject, submitted: :rejected
       machine.lock
@@ -517,7 +518,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       saved_state = machine.current_state
 
       # SAFE: Additive evolution - adds new states and transitions without changing existing ones
-      additive_system = StateJacket::TransitionSystem.new
+      additive_system = StateJacket::Matrix.new
       additive_system.add submitted: [:approved, :rejected, :needs_info]  # Added new option
       additive_system.add approved: :completed                           # Extended existing state
       additive_system.add rejected: nil                                  # Kept as-is
@@ -525,7 +526,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       additive_system.lock
 
       # Can safely resume
-      additive_machine = StateJacket::StateMachine.new(additive_system, current_state: saved_state)
+      additive_machine = StateJacket::Machine.new(additive_system, current_state: saved_state)
       additive_machine.on :complete, approved: :completed
       additive_machine.lock
 
@@ -535,7 +536,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
       # PATTERN 2: Careful Replacement (more risky)
       # A replacement system that changes transition paths but preserves all states
-      replacement_system = StateJacket::TransitionSystem.new
+      replacement_system = StateJacket::Matrix.new
       replacement_system.add submitted: :under_review                   # Changed transition
       replacement_system.add under_review: [:approved, :rejected]       # New intermediate state
       replacement_system.add approved: [:completed, :revoked]           # Changed options
@@ -543,7 +544,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       replacement_system.lock
 
       # Can still resume but behavior might be different
-      replacement_machine = StateJacket::StateMachine.new(replacement_system, current_state: saved_state)
+      replacement_machine = StateJacket::Machine.new(replacement_system, current_state: saved_state)
       replacement_machine.on :complete, approved: :completed
       replacement_machine.on :revoke, approved: :revoked
       replacement_machine.lock
@@ -553,7 +554,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
       # PATTERN 3: State Renaming (potentially dangerous)
       # Using a compatibility mapping can help manage renamed states
-      renamed_system = StateJacket::TransitionSystem.new
+      renamed_system = StateJacket::Matrix.new
       renamed_system.add submitted: [:accepted, :declined]              # Renamed states
       renamed_system.add accepted: :finalized                           # Renamed state
       renamed_system.lock
@@ -568,7 +569,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       mapped_state = state_mapping[saved_state] || saved_state
 
       # Can resume with mapped state
-      renamed_machine = StateJacket::StateMachine.new(renamed_system, current_state: mapped_state)
+      renamed_machine = StateJacket::Machine.new(renamed_system, current_state: mapped_state)
       renamed_machine.on :finalize, accepted: :finalized
       renamed_machine.lock
 
@@ -578,9 +579,9 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
   end
 
   class FromHashSerializationTest < Test
-    def test_transition_system_from_hash
+    def test_matrix_from_hash
       # Create original transition system
-      original_system = StateJacket::TransitionSystem.new
+      original_system = StateJacket::Matrix.new
       original_system.add draft: [:review, :canceled]
       original_system.add review: [:approved, :rejected]
       original_system.add approved: :published
@@ -590,36 +591,36 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       system_hash = original_system.to_hash
 
       # Rebuild from hash
-      restored_system = StateJacket::TransitionSystem.from_hash(system_hash)
+      restored_matrix = StateJacket::Matrix.from_hash(system_hash)
 
-      # Verify restored system matches original
-      assert restored_system.locked?
-      assert_equal original_system.states.sort, restored_system.states.sort
-      assert_equal original_system.transitioners.sort, restored_system.transitioners.sort
-      assert_equal original_system.terminals.sort, restored_system.terminals.sort
+      # Verify restored matrix matches original
+      assert restored_matrix.locked?
+      assert_equal original_system.states.sort, restored_matrix.states.sort
+      assert_equal original_system.transitioners.sort, restored_matrix.transitioners.sort
+      assert_equal original_system.terminals.sort, restored_matrix.terminals.sort
 
-      # Verify transitions work as expected
-      assert restored_system.allows?(draft: :review)
-      assert restored_system.allows?(review: :approved)
-      assert restored_system.allows?(approved: :published)
-      refute restored_system.allows?(draft: :published)
+      # Test allows? for matrix transitions
+      assert restored_matrix.allows?(draft: :review)
+      assert restored_matrix.allows?(review: :approved)
+      assert restored_matrix.allows?(approved: :published)
+      refute restored_matrix.allows?(draft: :published)
     end
 
     def test_state_machine_from_hash
       # Create original transition system and state machine
-      system = StateJacket::TransitionSystem.new
-      system.add start: :in_progress
-      system.add in_progress: [:completed, :failed]
-      system.lock
+      matrix = StateJacket::Matrix.new
+      matrix.add start: :in_progress
+      matrix.add in_progress: [:completed, :failed]
+      matrix.lock
 
-      original_machine = StateJacket::StateMachine.new(system, current_state: :start)
+      original_machine = StateJacket::Machine.new(matrix, current_state: :start)
       original_machine.on :begin, start: :in_progress
       original_machine.on :complete, in_progress: :completed
       original_machine.on :fail, in_progress: :failed
       original_machine.lock
 
       # Serialize both to hashes
-      system_hash = system.to_hash
+      system_hash = matrix.to_hash
       original_machine.to_hash
 
       # Trigger a transition and update the hash
@@ -627,8 +628,8 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       machine_hash = original_machine.to_hash
 
       # Rebuild from hashes
-      restored_system = StateJacket::TransitionSystem.from_hash(system_hash)
-      restored_machine = StateJacket::StateMachine.from_hash(restored_system, machine_hash)
+      restored_matrix = StateJacket::Matrix.from_hash(system_hash)
+      restored_machine = StateJacket::Machine.from_hash(restored_matrix, machine_hash)
 
       # Verify restored machine matches original
       assert_equal original_machine.current_state, restored_machine.current_state
@@ -654,17 +655,17 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       # This test demonstrates a complete workflow with serialization at multiple points
 
       # 1. Define and initialize the workflow
-      system = StateJacket::TransitionSystem.new
-      system.add pending: [:approved, :rejected]
-      system.add approved: :active
-      system.add active: [:suspended, :completed]
-      system.lock
+      matrix = StateJacket::Matrix.new
+      matrix.add pending: [:approved, :rejected]
+      matrix.add approved: :active
+      matrix.add active: [:suspended, :completed]
+      matrix.lock
 
       # Serialize the system for persistence
-      system_hash = system.to_hash
+      system_hash = matrix.to_hash
 
       # 2. Start workflow - Day 1
-      machine = StateJacket::StateMachine.new(system, current_state: :pending)
+      machine = StateJacket::Machine.new(matrix, current_state: :pending)
       machine.on :approve, pending: :approved
       machine.on :reject, pending: :rejected
       machine.lock
@@ -674,8 +675,8 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
       # 3. Resume workflow - Day 2
       # Restore from saved hashes
-      restored_system = StateJacket::TransitionSystem.from_hash(system_hash)
-      day2_machine = StateJacket::StateMachine.from_hash(restored_system, machine_hash_day1)
+      restored_matrix = StateJacket::Matrix.from_hash(system_hash)
+      day2_machine = StateJacket::Machine.from_hash(restored_matrix, machine_hash_day1)
 
       # Progress the workflow
       day2_machine.trigger(:approve)
@@ -686,10 +687,10 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
       # 4. Resume workflow - Day 3
       # Restore from latest saved hash
-      day3_machine = StateJacket::StateMachine.from_hash(restored_system, machine_hash_day2)
+      day3_machine = StateJacket::Machine.from_hash(restored_matrix, machine_hash_day2)
 
       # Define new events for current state (reusing the instance for clarity)
-      day3_machine = StateJacket::StateMachine.new(restored_system, current_state: day3_machine.current_state)
+      day3_machine = StateJacket::Machine.new(restored_matrix, current_state: day3_machine.current_state)
       day3_machine.on :activate, approved: :active
       day3_machine.lock
 
@@ -702,10 +703,10 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
 
       # 5. Resume workflow - Day 4
       # Restore from latest saved hash
-      day4_machine = StateJacket::StateMachine.from_hash(restored_system, machine_hash_day3)
+      day4_machine = StateJacket::Machine.from_hash(restored_matrix, machine_hash_day3)
 
       # Define new events for current state (reusing the instance for clarity)
-      day4_machine = StateJacket::StateMachine.new(restored_system, current_state: day4_machine.current_state)
+      day4_machine = StateJacket::Machine.new(restored_matrix, current_state: day4_machine.current_state)
       day4_machine.on :suspend, active: :suspended
       day4_machine.on :complete, active: :completed
       day4_machine.lock
@@ -719,7 +720,7 @@ class StateJacket::StateMachine::WorkflowResumptionTest < Test
       final_machine_hash = day4_machine.to_hash
 
       # Verify we can still restore from the final state
-      final_machine = StateJacket::StateMachine.from_hash(restored_system, final_machine_hash)
+      final_machine = StateJacket::Machine.from_hash(restored_matrix, final_machine_hash)
       assert_equal "completed", final_machine.current_state
       assert final_machine.finished?
     end
