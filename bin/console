@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "amazing_print"
+require "bundler/setup"
+require "pry-byebug"
+require "state_jacket"
+
+AmazingPrint.pry!
+Pry.start

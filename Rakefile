@@ -1,4 +1,5 @@
 require "bundler/gem_tasks"
+require "rake/testtask"
 
 task default: [:test]
 
@@ -7,7 +8,8 @@ task :rubocop do
   exec "bundle exec rubocop -c .rubocop.yml"
 end
 
-desc "Runs the test suite."
-task :test do
-  exec "bundle exec pry-test --disable-pry"
+Rake::TestTask.new do |t|
+  t.libs << "test"
+  t.libs << "lib"
+  t.test_files = FileList["test/**/*_test.rb"]
 end

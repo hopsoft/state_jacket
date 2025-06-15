@@ -1,0 +1,337 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative "../lib/state_jacket"
+require "benchmark"
+
+def format_number(num)
+  num.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse
+end
+
+def benchmark_operation(count, description, &block)
+  time = Benchmark.realtime do
+    count.times(&block)
+  end
+
+  ops_per_second = (count / time).round
+  puts "  #{description}: #{time.round(4)}s (#{format_number(ops_per_second)}/sec)"
+  time
+end
+
+puts "StateJacket Performance Benchmark"
+puts "=" * 70
+
+# Publisher workflow matrix (from README example)
+puts "\n1. PUBLISHER WORKFLOW BENCHMARK"
+puts "-" * 50
+
+matrix = StateJacket::Matrix.new
+matrix.add created: :submitted
+matrix.add submitted: [:approved, :rejected]
+matrix.add approved: :published
+matrix.lock
+
+machine = StateJacket::Machine.new(matrix, current_state: :created)
+machine.on :submit, matrix[:created_to_submitted]
+machine.on :approve, matrix[:submitted_to_approved]
+machine.on :reject, matrix[:submitted_to_rejected]
+machine.on :publish, matrix[:approved_to_published]
+machine.lock
+
+puts "Matrix states: #{matrix.states.join(", ")}"
+puts "Machine events: #{machine.events.join(", ")}"
+
+# Warm up
+100.times do
+  machine.trigger(:submit)
+  machine.trigger(:approve)
+  machine.trigger(:publish)
+  # Reset to start
+  machine = StateJacket::Machine.new(matrix, current_state: :created)
+  machine.on :submit, matrix[:created_to_submitted]
+  machine.on :approve, matrix[:submitted_to_approved]
+  machine.on :reject, matrix[:submitted_to_rejected]
+  machine.on :publish, matrix[:approved_to_published]
+  machine.lock
+end
+
+# Full workflow benchmarks
+[1_000, 10_000, 100_000].each do |count|
+  puts "\nWorkflow cycles (#{format_number(count)}):"
+
+  total_time = Benchmark.realtime do
+    count.times do
+      machine.trigger(:submit)
+      machine.trigger(:approve)
+      machine.trigger(:publish)
+      # Reset for next cycle
+      machine = StateJacket::Machine.new(matrix, current_state: :created)
+      machine.on :submit, matrix[:created_to_submitted]
+      machine.on :approve, matrix[:submitted_to_approved]
+      machine.on :reject, matrix[:submitted_to_rejected]
+      machine.on :publish, matrix[:approved_to_published]
+      machine.lock
+    end
+  end
+
+  cycles_per_second = (count / total_time).round
+  puts "  Complete workflows: #{total_time.round(4)}s (#{format_number(cycles_per_second)}/sec)"
+end
+
+# 2. MATRIX OPERATIONS BENCHMARK
+puts "\n\n2. MATRIX OPERATIONS BENCHMARK"
+puts "-" * 50
+
+# Complex matrix for testing introspection
+complex_matrix = StateJacket::Matrix.new
+complex_matrix.add draft: [:review, :archived]
+complex_matrix.add review: [:approved, :rejected, :draft]
+complex_matrix.add approved: [:published, :archived]
+complex_matrix.add rejected: [:draft, :archived]
+complex_matrix.add published: [:archived, :updated]
+complex_matrix.add updated: [:review, :published]
+complex_matrix.lock
+
+puts "Complex matrix: #{complex_matrix.states.size} states, #{complex_matrix.transitions.size} transitions"
+
+[10_000, 100_000, 1_000_000].each do |count|
+  puts "\nMatrix operations (#{format_number(count)}):"
+
+  benchmark_operation(count, "States lookup") { complex_matrix.states }
+
+  states = complex_matrix.states
+  benchmark_operation(count, "Include? checks") { complex_matrix.include?(states.sample) }
+
+  keys = complex_matrix.transition_keys
+  benchmark_operation(count, "Transition lookups") { complex_matrix[keys.sample] }
+end
+
+# 3. MACHINE INTROSPECTION BENCHMARK
+puts "\n\n3. MACHINE INTROSPECTION BENCHMARK"
+puts "-" * 50
+
+complex_machine = StateJacket::Machine.new(complex_matrix, current_state: :draft)
+complex_machine.on :submit, complex_matrix[:draft_to_review]
+complex_machine.on :approve, complex_matrix[:review_to_approved]
+complex_machine.on :reject, complex_matrix[:review_to_rejected]
+complex_machine.on :publish, complex_matrix[:approved_to_published]
+complex_machine.on :archive, [:draft, :rejected, :approved, :published] => :archived
+complex_machine.on :update, complex_matrix[:published_to_updated]
+complex_machine.on :revise, complex_matrix[:rejected_to_draft]
+complex_machine.lock
+
+puts "Complex machine: #{complex_machine.events.size} events"
+
+[10_000, 100_000, 1_000_000].each do |count|
+  puts "\nMachine operations (#{format_number(count)}):"
+
+  benchmark_operation(count, "Current state") { complex_machine.current_state }
+
+  events = complex_machine.events
+  benchmark_operation(count, "Can trigger?") { complex_machine.can_trigger?(events.sample) }
+
+  benchmark_operation(count, "Triggerable events") { complex_machine.triggerable_events }
+
+  benchmark_operation(count, "Reachable states") { complex_machine.reachable_states }
+end
+
+# 4. TRANSITION WITH BUSINESS LOGIC BENCHMARK
+puts "\n\n4. BUSINESS LOGIC INTEGRATION BENCHMARK"
+puts "-" * 50
+
+# Simulate user roles and permissions
+USER_ROLES = [:author, :editor, :admin]
+PERMISSIONS = {
+  author: [:submit],
+  editor: [:submit, :approve, :reject],
+  admin: [:submit, :approve, :reject, :publish, :archive]
+}
+
+def simulate_auth_check(user_role, action)
+  # Simulate permission lookup (hash access + array inclusion)
+  PERMISSIONS[user_role]&.include?(action) || false
+end
+
+def simulate_database_write(operation, data)
+  # Simulate database latency (0.1-0.5ms range)
+  sleep(rand(0.0001..0.0005))
+  "#{operation}: #{data}"
+end
+
+def simulate_audit_log(user_id, action, from_state, to_state)
+  # Simulate audit logging with timestamp and serialization
+  timestamp = Time.now.strftime("%Y-%m-%d %H:%M:%S.%L")
+  log_entry = {
+    timestamp: timestamp,
+    user_id: user_id,
+    action: action,
+    transition: "#{from_state} -> #{to_state}"
+  }
+  # Simulate JSON serialization cost
+  log_entry.to_s.length > 0
+end
+
+logic_machine = StateJacket::Machine.new(matrix, current_state: :created)
+logic_machine.on :submit, matrix[:created_to_submitted]
+logic_machine.on :approve, matrix[:submitted_to_approved]
+logic_machine.on :publish, matrix[:approved_to_published]
+logic_machine.lock
+
+# Test different business logic complexity levels
+puts "\nBusiness Logic Scenarios:"
+
+# Scenario 1: Minimal logic (just counter)
+puts "\nScenario 1: Minimal Logic (counter only)"
+[1_000, 5_000].each do |count|
+  counter = 0
+
+  time = Benchmark.realtime do
+    count.times do
+      logic_machine.trigger(:submit) { |from, to| counter += 1 }
+      logic_machine.trigger(:approve) { |from, to| counter += 1 }
+      logic_machine.trigger(:publish) { |from, to| counter += 1 }
+
+      # Reset
+      logic_machine = StateJacket::Machine.new(matrix, current_state: :created)
+      logic_machine.on :submit, matrix[:created_to_submitted]
+      logic_machine.on :approve, matrix[:submitted_to_approved]
+      logic_machine.on :publish, matrix[:approved_to_published]
+      logic_machine.lock
+    end
+  end
+
+  workflows_per_second = (count / time).round
+  puts "  #{format_number(count)} workflows: #{time.round(4)}s (#{format_number(workflows_per_second)}/sec)"
+end
+
+# Scenario 2: Authorization + validation
+puts "\nScenario 2: Authorization + Validation"
+[1_000, 5_000].each do |count|
+  counter = 0
+  user_id = "user_#{rand(1000)}"
+
+  time = Benchmark.realtime do
+    count.times do
+      # Use admin role to ensure all transitions are authorized
+      current_role = :admin
+
+      logic_machine.trigger(:submit) do |from, to|
+        raise "Unauthorized" unless simulate_auth_check(current_role, :submit)
+        counter += 1
+        {user: user_id, role: current_role, transition_count: counter}
+      end
+
+      logic_machine.trigger(:approve) do |from, to|
+        raise "Unauthorized" unless simulate_auth_check(current_role, :approve)
+        counter += 1
+        {user: user_id, role: current_role, transition_count: counter}
+      end
+
+      logic_machine.trigger(:publish) do |from, to|
+        raise "Unauthorized" unless simulate_auth_check(current_role, :publish)
+        counter += 1
+        {user: user_id, role: current_role, transition_count: counter}
+      end
+
+      # Reset
+      logic_machine = StateJacket::Machine.new(matrix, current_state: :created)
+      logic_machine.on :submit, matrix[:created_to_submitted]
+      logic_machine.on :approve, matrix[:submitted_to_approved]
+      logic_machine.on :publish, matrix[:approved_to_published]
+      logic_machine.lock
+    end
+  end
+
+  workflows_per_second = (count / time).round
+  puts "  #{format_number(count)} workflows: #{time.round(4)}s (#{format_number(workflows_per_second)}/sec)"
+end
+
+# Scenario 3: Full business logic (auth + database + audit)
+puts "\nScenario 3: Simulated Business Logic (auth + database + audit)"
+[100, 500, 1_000].each do |count|
+  counter = 0
+  user_id = "user_#{rand(1000)}"
+
+  time = Benchmark.realtime do
+    count.times do
+      current_role = :admin # Use admin to avoid auth failures
+
+      logic_machine.trigger(:submit) do |from, to|
+        # Authorization check
+        raise "Unauthorized" unless simulate_auth_check(current_role, :submit)
+
+        # Database operations
+        content_id = "content_#{counter += 1}"
+        simulate_database_write("INSERT", {id: content_id, status: to, submitted_at: Time.now})
+        simulate_database_write("UPDATE", {id: content_id, version: counter})
+
+        # Audit logging
+        simulate_audit_log(user_id, :submit, from, to)
+
+        {content_id: content_id, submitted_by: user_id, version: counter}
+      end
+
+      logic_machine.trigger(:approve) do |from, to|
+        raise "Unauthorized" unless simulate_auth_check(current_role, :approve)
+
+        content_id = "content_#{counter}"
+        simulate_database_write("UPDATE", {id: content_id, status: to, approved_at: Time.now, approved_by: user_id})
+        simulate_database_write("INSERT", {type: "approval", content_id: content_id, approver: user_id})
+
+        simulate_audit_log(user_id, :approve, from, to)
+
+        {content_id: content_id, approved_by: user_id}
+      end
+
+      logic_machine.trigger(:publish) do |from, to|
+        raise "Unauthorized" unless simulate_auth_check(current_role, :publish)
+
+        content_id = "content_#{counter}"
+        simulate_database_write("UPDATE", {id: content_id, status: to, published_at: Time.now})
+        simulate_database_write("INSERT", {type: "publication", content_id: content_id, published_by: user_id})
+        simulate_database_write("UPDATE", {table: "metrics", published_count: "+1"})
+
+        simulate_audit_log(user_id, :publish, from, to)
+
+        {content_id: content_id, published_by: user_id, live: true}
+      end
+
+      # Reset
+      logic_machine = StateJacket::Machine.new(matrix, current_state: :created)
+      logic_machine.on :submit, matrix[:created_to_submitted]
+      logic_machine.on :approve, matrix[:submitted_to_approved]
+      logic_machine.on :publish, matrix[:approved_to_published]
+      logic_machine.lock
+    end
+  end
+
+  workflows_per_second = (count / time).round
+  puts "  #{format_number(count)} workflows: #{time.round(4)}s (#{format_number(workflows_per_second)}/sec)"
+  puts "    Average latency per transition: #{((time / count / 3) * 1000).round(2)}ms"
+end
+
+# 5. SERIALIZATION BENCHMARK
+puts "\n\n5. SERIALIZATION BENCHMARK"
+puts "-" * 50
+
+[1_000, 10_000, 100_000].each do |count|
+  puts "\nSerialization operations (#{format_number(count)}):"
+
+  benchmark_operation(count, "Matrix to_h") { complex_matrix.to_h }
+
+  benchmark_operation(count, "Machine to_h") { complex_machine.to_h }
+
+  # Test from_hash creation
+  matrix_data = complex_matrix.to_h
+  machine_data = complex_machine.to_h
+
+  benchmark_operation(count, "Matrix from_hash") { StateJacket::Matrix.from_hash(matrix_data) }
+
+  test_matrix = StateJacket::Matrix.from_hash(matrix_data)
+  benchmark_operation(count, "Machine from_hash") { StateJacket::Machine.from_hash(test_matrix, machine_data) }
+end
+
+puts "\n" + "=" * 70
+puts "All benchmarks completed successfully!"
+puts "Matrix optimizations: #{matrix.locked? ? "ENABLED" : "DISABLED"} (locked matrices use caching)"
+puts "Thread safety: ENABLED (all operations are synchronized)"
